@@ -491,9 +491,21 @@
   setupEvents();
   render();
 
+  // Auto-switch to multiplayer tab if there is a room or create=1 param
+  var urlParams = new URLSearchParams(window.location.search);
+  if (roomId || urlParams.get("create") === "1") {
+    var multiTab = document.querySelector('.mode-tab[data-tab="multi"]');
+    if (multiTab && !multiTab.classList.contains("active")) { multiTab.click(); }
+  }
+
   // If page was opened via an invite link, prompt the user to accept
   if (roomId && roomStatus && !acceptedInvite) {
     roomStatus.textContent = "Invite link detected. Click Accept Invite to join this room.";
     roomStatus.className = "status-text";
+  }
+
+  // If opened with ?create=1, automatically start creating a room
+  if (urlParams.get("create") === "1" && !roomId) {
+    createRoom();
   }
 }());

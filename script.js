@@ -1539,3 +1539,28 @@ if (taxiCanvas) {
   resetTaxiGame();
   requestAnimationFrame(taxiLoop);
 }
+
+// ── Solo / Multiplayer mode tabs ──────────────────────────────────────
+(function initModeTabs() {
+  const tabs = document.querySelectorAll(".mode-tab");
+  if (!tabs.length) return;
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      tabs.forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+
+      const target = tab.dataset.tab;
+      document.querySelectorAll(".tab-panel").forEach((panel) => {
+        panel.classList.toggle("hidden", panel.id !== `tab-${target}`);
+      });
+    });
+  });
+
+  // If URL has ?create=1, auto-switch to the multiplayer tab and trigger create
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("create") === "1") {
+    const multiTab = document.querySelector('.mode-tab[data-tab="multi"]');
+    if (multiTab) multiTab.click();
+  }
+})();

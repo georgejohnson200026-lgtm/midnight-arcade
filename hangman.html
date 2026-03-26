@@ -50,109 +50,138 @@
           <a class="back-link" href="index.html">Back to homepage</a>
         </header>
 
-        <main class="games-grid single-game-grid">
-          <section class="game-card multiplayer-card">
-            <h2>Multiplayer Room</h2>
-            <p class="game-description">Create an invite link for Hangman or accept one. The first round starts only when the host starts it.</p>
-            <p id="mp-room-meta" class="meta-text">No multiplayer room yet.</p>
-            <p id="mp-room-status" class="status-text">Create an invite link for the game you want to play.</p>
-            <div class="mp-room-actions">
-              <button id="mp-create-invite-btn" type="button">Create Invite Link</button>
-              <button id="mp-copy-invite-btn" class="ghost-btn" type="button">Copy Link</button>
-              <button id="mp-accept-invite-btn" class="ghost-btn" type="button">Accept Invite</button>
-            </div>
-            <input id="mp-invite-link" type="text" readonly placeholder="Invite link appears here" />
-            <div class="mp-switch-links">
-              <a data-room-switch="hangman.html" href="hangman.html">Stay in Hangman</a>
-              <a data-room-switch="tic-tac-toe.html" href="tic-tac-toe.html">Switch room to Tic-Tac-Toe</a>
-            </div>
-          </section>
+        <main class="game-page-layout">
 
-          <section class="game-card multiplayer-card" id="mp-hangman-wrap">
-            <h2>Hangman Multiplayer</h2>
-            <p id="mp-hangman-status" class="status-text">Accept invite to join this multiplayer room.</p>
-            <div class="mp-room-actions">
-              <input id="mp-hangman-set-word" type="text" maxlength="16" placeholder="Setter enters secret word" />
-              <button id="mp-hangman-set-btn" type="button">Set Word</button>
-              <button id="mp-hangman-start-btn" class="ghost-btn" type="button">Start First Game</button>
-            </div>
-            <p id="mp-hangman-word" class="hangman-word">_ _ _ _</p>
-            <p id="mp-hangman-meta" class="meta-text">Round 0 • Wrong guesses: 0/6</p>
-            <div id="mp-hangman-letters" class="letter-grid" aria-label="Hangman multiplayer letters"></div>
-          </section>
+          <!-- Mode tabs -->
+          <div class="mode-tabs">
+            <button class="mode-tab active" data-tab="solo">Solo</button>
+            <button class="mode-tab" data-tab="multi">Multiplayer</button>
+          </div>
 
-          <section class="game-card hangman-card hangman-card-single" id="hangman-game">
-            <h2>Hangman</h2>
-            <p class="game-description">Pick a theme and difficulty, then solve the hidden word before the tries run out.</p>
-            <div class="hangman-toolbar">
-              <label class="select-wrap" for="hangman-theme">
-                <span>Theme</span>
-                <select id="hangman-theme">
-                  <option value="sports">Sports</option>
-                  <option value="movies">Movies</option>
-                  <option value="entertainment">Entertainment</option>
-                  <option value="everyday">Everyday Items</option>
-                </select>
-              </label>
-              <label class="select-wrap" for="hangman-difficulty">
-                <span>Difficulty</span>
-                <select id="hangman-difficulty">
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </label>
-              <button id="hangman-new-btn" class="ghost-btn">New Word</button>
-            </div>
-            <div class="hangman-stage" id="hangman-stage" aria-live="polite">
-              <div id="hangman-confetti" class="hangman-confetti" aria-hidden="true"></div>
-              <svg class="hangman-svg" viewBox="0 0 240 260" role="img" aria-label="Hangman drawing area">
-                <rect class="gallows" x="18" y="228" width="88" height="18" rx="2"></rect>
-                <rect class="gallows" x="46" y="26" width="10" height="202" rx="2"></rect>
-                <rect class="gallows" x="46" y="26" width="110" height="10" rx="2"></rect>
-                <rect class="gallows" x="142" y="36" width="4" height="28" rx="2"></rect>
-                <circle id="hangman-head" class="figure-part" cx="144" cy="82" r="18"></circle>
-                <g id="hangman-loss-eyes" class="loss-eyes" aria-hidden="true">
-                  <line x1="136" y1="76" x2="141" y2="81"></line>
-                  <line x1="141" y1="76" x2="136" y2="81"></line>
-                  <line x1="147" y1="76" x2="152" y2="81"></line>
-                  <line x1="152" y1="76" x2="147" y2="81"></line>
-                </g>
-                <line id="hangman-body" class="figure-part" x1="144" y1="100" x2="144" y2="150"></line>
-                <line id="hangman-left-arm" class="figure-part" x1="144" y1="114" x2="122" y2="132"></line>
-                <line id="hangman-right-arm" class="figure-part" x1="144" y1="114" x2="166" y2="132"></line>
-                <line id="hangman-left-leg" class="figure-part" x1="144" y1="150" x2="126" y2="188"></line>
-                <line id="hangman-right-leg" class="figure-part" x1="144" y1="150" x2="164" y2="188"></line>
-                <g id="hangman-cheer" class="cheer-figure" aria-hidden="true">
-                  <circle cx="182" cy="196" r="16"></circle>
-                  <line x1="182" y1="212" x2="182" y2="244"></line>
-                  <line x1="182" y1="220" x2="158" y2="198"></line>
-                  <line x1="182" y1="220" x2="206" y2="198"></line>
-                  <line x1="182" y1="244" x2="162" y2="256"></line>
-                  <line x1="182" y1="244" x2="202" y2="256"></line>
-                </g>
-              </svg>
-              <div id="hangman-banner" class="hangman-banner" aria-hidden="true"></div>
-            </div>
-            <p id="hangman-hint" class="meta-text">Theme: Sports • Difficulty: Easy</p>
-            <p id="hangman-word" class="hangman-word" aria-live="polite">_ _ _ _ _</p>
-            <p id="hangman-feedback" class="status-text">Choose a letter to begin.</p>
-            <div class="hangman-stats">
-              <p id="hangman-lives" class="meta-text">Mistakes left: 6</p>
-              <p id="hangman-guessed" class="meta-text">Guessed: None</p>
-            </div>
-            <div class="letter-grid" id="hangman-letters" aria-label="Hangman letters"></div>
-          </section>
+          <!-- ── SOLO PANEL ── -->
+          <div class="tab-panel" id="tab-solo">
+            <section class="game-card hangman-card hangman-card-single" id="hangman-game">
+              <h2>Hangman</h2>
+              <p class="game-description">Pick a theme and difficulty, then solve the hidden word before the tries run out.</p>
+              <div class="hangman-toolbar">
+                <label class="select-wrap" for="hangman-theme">
+                  <span>Theme</span>
+                  <select id="hangman-theme">
+                    <option value="sports">Sports</option>
+                    <option value="movies">Movies</option>
+                    <option value="entertainment">Entertainment</option>
+                    <option value="everyday">Everyday Items</option>
+                  </select>
+                </label>
+                <label class="select-wrap" for="hangman-difficulty">
+                  <span>Difficulty</span>
+                  <select id="hangman-difficulty">
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </label>
+                <button id="hangman-new-btn" class="ghost-btn">New Word</button>
+              </div>
+              <div class="hangman-stage" id="hangman-stage" aria-live="polite">
+                <div id="hangman-confetti" class="hangman-confetti" aria-hidden="true"></div>
+                <svg class="hangman-svg" viewBox="0 0 240 260" role="img" aria-label="Hangman drawing area">
+                  <rect class="gallows" x="18" y="228" width="88" height="18" rx="2"></rect>
+                  <rect class="gallows" x="46" y="26" width="10" height="202" rx="2"></rect>
+                  <rect class="gallows" x="46" y="26" width="110" height="10" rx="2"></rect>
+                  <rect class="gallows" x="142" y="36" width="4" height="28" rx="2"></rect>
+                  <circle id="hangman-head" class="figure-part" cx="144" cy="82" r="18"></circle>
+                  <g id="hangman-loss-eyes" class="loss-eyes" aria-hidden="true">
+                    <line x1="136" y1="76" x2="141" y2="81"></line>
+                    <line x1="141" y1="76" x2="136" y2="81"></line>
+                    <line x1="147" y1="76" x2="152" y2="81"></line>
+                    <line x1="152" y1="76" x2="147" y2="81"></line>
+                  </g>
+                  <line id="hangman-body" class="figure-part" x1="144" y1="100" x2="144" y2="150"></line>
+                  <line id="hangman-left-arm" class="figure-part" x1="144" y1="114" x2="122" y2="132"></line>
+                  <line id="hangman-right-arm" class="figure-part" x1="144" y1="114" x2="166" y2="132"></line>
+                  <line id="hangman-left-leg" class="figure-part" x1="144" y1="150" x2="126" y2="188"></line>
+                  <line id="hangman-right-leg" class="figure-part" x1="144" y1="150" x2="164" y2="188"></line>
+                  <g id="hangman-cheer" class="cheer-figure" aria-hidden="true">
+                    <circle cx="182" cy="196" r="16"></circle>
+                    <line x1="182" y1="212" x2="182" y2="244"></line>
+                    <line x1="182" y1="220" x2="158" y2="198"></line>
+                    <line x1="182" y1="220" x2="206" y2="198"></line>
+                    <line x1="182" y1="244" x2="162" y2="256"></line>
+                    <line x1="182" y1="244" x2="202" y2="256"></line>
+                  </g>
+                </svg>
+                <div id="hangman-banner" class="hangman-banner" aria-hidden="true"></div>
+              </div>
+              <p id="hangman-hint" class="meta-text">Theme: Sports • Difficulty: Easy</p>
+              <p id="hangman-word" class="hangman-word" aria-live="polite">_ _ _ _ _</p>
+              <p id="hangman-feedback" class="status-text">Choose a letter to begin.</p>
+              <div class="hangman-stats">
+                <p id="hangman-lives" class="meta-text">Mistakes left: 6</p>
+                <p id="hangman-guessed" class="meta-text">Guessed: None</p>
+              </div>
+              <div class="letter-grid" id="hangman-letters" aria-label="Hangman letters"></div>
+            </section>
+          </div>
 
-          <section class="game-card multiplayer-card">
-            <h2>Room Chat Log</h2>
-            <p class="game-description">This chat history follows you between multiplayer games in the same room. It clears after both players leave.</p>
-            <div id="mp-chat-log" class="mp-chat-log" aria-live="polite"></div>
-            <div class="mp-chat-actions">
-              <input id="mp-chat-input" type="text" maxlength="220" placeholder="Type a message" />
-              <button id="mp-chat-send-btn" type="button">Send</button>
+          <!-- ── MULTIPLAYER PANEL ── -->
+          <div class="tab-panel hidden" id="tab-multi">
+            <div class="mp-two-col">
+              <section class="game-card multiplayer-card" id="mp-hangman-wrap">
+                <h2>Hangman Multiplayer</h2>
+                <p id="mp-hangman-status" class="status-text">Accept invite to join this multiplayer room.</p>
+                <div class="hangman-stage" aria-live="polite">
+                  <svg class="hangman-svg" viewBox="0 0 240 260" role="img" aria-label="Hangman drawing area">
+                    <rect class="gallows" x="18" y="228" width="88" height="18" rx="2"></rect>
+                    <rect class="gallows" x="46" y="26" width="10" height="202" rx="2"></rect>
+                    <rect class="gallows" x="46" y="26" width="110" height="10" rx="2"></rect>
+                    <rect class="gallows" x="142" y="36" width="4" height="28" rx="2"></rect>
+                    <circle id="mp-hangman-head" class="figure-part" cx="144" cy="82" r="18"></circle>
+                    <line id="mp-hangman-body" class="figure-part" x1="144" y1="100" x2="144" y2="150"></line>
+                    <line id="mp-hangman-left-arm" class="figure-part" x1="144" y1="114" x2="122" y2="132"></line>
+                    <line id="mp-hangman-right-arm" class="figure-part" x1="144" y1="114" x2="166" y2="132"></line>
+                    <line id="mp-hangman-left-leg" class="figure-part" x1="144" y1="150" x2="126" y2="188"></line>
+                    <line id="mp-hangman-right-leg" class="figure-part" x1="144" y1="150" x2="164" y2="188"></line>
+                  </svg>
+                </div>
+                <div class="mp-room-actions">
+                  <input id="mp-hangman-set-word" type="text" maxlength="16" placeholder="Setter enters secret word" />
+                  <button id="mp-hangman-set-btn" type="button">Set Word</button>
+                  <button id="mp-hangman-start-btn" class="ghost-btn" type="button">Start First Game</button>
+                </div>
+                <p id="mp-hangman-word" class="hangman-word">_ _ _ _</p>
+                <p id="mp-hangman-meta" class="meta-text">Round 0 • Wrong: 0/6</p>
+                <div id="mp-hangman-letters" class="letter-grid" aria-label="Hangman multiplayer letters"></div>
+              </section>
+
+              <section class="game-card multiplayer-card">
+                <h2>Room</h2>
+                <p id="mp-room-meta" class="meta-text">No multiplayer room yet.</p>
+                <p id="mp-room-status" class="status-text">Create an invite link for the game you want to play.</p>
+                <div class="mp-room-actions">
+                  <button id="mp-create-invite-btn" type="button">Create Invite Link</button>
+                  <button id="mp-copy-invite-btn" class="ghost-btn" type="button">Copy Link</button>
+                  <button id="mp-accept-invite-btn" class="ghost-btn" type="button">Accept Invite</button>
+                </div>
+                <input id="mp-invite-link" type="text" readonly placeholder="Invite link appears here" />
+                <div class="mp-switch-links">
+                  <a data-room-switch="hangman.html" href="hangman.html">Stay in Hangman</a>
+                  <a data-room-switch="tic-tac-toe.html" href="tic-tac-toe.html">Switch to Tic-Tac-Toe</a>
+                </div>
+              </section>
             </div>
-          </section>
+
+            <section class="game-card multiplayer-card mp-chat-full">
+              <h2>Room Chat Log</h2>
+              <p class="game-description">Messages follow you across multiplayer games in this room.</p>
+              <div id="mp-chat-log" class="mp-chat-log" aria-live="polite"></div>
+              <div class="mp-chat-actions">
+                <input id="mp-chat-input" type="text" maxlength="220" placeholder="Type a message" />
+                <button id="mp-chat-send-btn" type="button">Send</button>
+              </div>
+            </section>
+          </div>
+
         </main>
 
         <footer class="site-footer">
