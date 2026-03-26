@@ -1645,3 +1645,145 @@ if (taxiCanvas) {
 
   updateDisplay();
 })();
+
+// ── Sidebar Account Login/Logout ──────────────────────────────────────
+(function initSidebarLogin() {
+  const USER_KEY = "user-login";
+  const loginBtn = document.getElementById("sidebar-login-btn");
+  const userInfo = document.getElementById("sidebar-user-info");
+  const usernameDisplay = document.getElementById("sidebar-username");
+  const logoutBtn = document.getElementById("sidebar-logout-btn");
+
+  if (!loginBtn || !userInfo || !usernameDisplay || !logoutBtn) return;
+
+  function readAuth() {
+    try { return JSON.parse(localStorage.getItem(USER_KEY) || "null"); } catch (e) { return null; }
+  }
+
+  function saveAuth(auth) {
+    localStorage.setItem(USER_KEY, JSON.stringify(auth));
+  }
+
+  function updateDisplay() {
+    const auth = readAuth();
+    if (auth && auth.username) {
+      loginBtn.classList.add("hidden");
+      userInfo.classList.remove("hidden");
+      usernameDisplay.textContent = auth.username;
+    } else {
+      loginBtn.classList.remove("hidden");
+      userInfo.classList.add("hidden");
+    }
+  }
+
+  loginBtn.addEventListener("click", () => {
+    const username = prompt("Enter your username (3-24 characters):", "");
+    if (!username || !username.trim()) return;
+    
+    const cleanUsername = username.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24);
+    if (cleanUsername.length < 3) {
+      alert("Username must be at least 3 characters.");
+      return;
+    }
+
+    const password = prompt("Enter your password (4+ characters):", "");
+    if (!password) return;
+    
+    if (password.length < 4) {
+      alert("Password must be at least 4 characters.");
+      return;
+    }
+
+    const auth = { username: cleanUsername, password: btoa(password), createdAt: Date.now() };
+    saveAuth(auth);
+    updateDisplay();
+  });
+
+  logoutBtn.addEventListener("click", () => {
+    if (confirm("Log out?")) {
+      localStorage.removeItem(USER_KEY);
+      updateDisplay();
+    }
+  });
+
+  updateDisplay();
+})();
+
+// ── Settings Panel ───────────────────────────────────────────────────────
+(function initSettings() {
+  const settingsBtn = document.querySelector(".sidebar-settings");
+  const settingsPanel = document.getElementById("settings-panel");
+  const settingsClose = document.getElementById("settings-close");
+  const lightModeToggle = document.getElementById("light-mode-toggle");
+  const volumeSlider = document.getElementById("volume-slider");
+  const volumeDisplay = document.getElementById("volume-display");
+
+  if (!settingsBtn || !settingsPanel || !settingsClose || !lightModeToggle || !volumeSlider) return;
+
+  const PREFS_KEY = "app-prefs";
+
+  function readPrefs() {
+    try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}"); } catch (e) { return {}; }
+  }
+
+  function savePrefs(prefs) {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  }
+
+  function applyLightMode(enabled) {
+    if (enabled) {
+      document.documentElement.style.setProperty("--bg", "#f5f5f5");
+      document.documentElement.style.setProperty("--text", "#1a1a1a");
+      document.documentElement.style.setProperty("--border", "rgba(0, 0, 0, 0.12)");
+    } else {
+      document.documentElement.style.setProperty("--bg", "#07121c");
+      document.documentElement.style.setProperty("--text", "#f4f7fb");
+      document.documentElement.style.setProperty("--border", "rgba(255, 255, 255, 0.12)");
+    }
+  }
+
+  function applyVolume(vol) {
+    document.documentElement.style.setProperty("--master-volume", vol / 100);
+  }
+
+  function loadPreferences() {
+    const prefs = readPrefs();
+    lightModeToggle.checked = prefs.lightMode || false;
+    volumeSlider.value = prefs.volume || 70;
+    volumeDisplay.textContent = volumeSlider.value + "%";
+    applyLightMode(lightModeToggle.checked);
+    applyVolume(volumeSlider.value);
+  }
+
+  settingsBtn.addEventListener("click", () => {
+    settingsPanel.classList.remove("hidden");
+  });
+
+  settingsClose.addEventListener("click", () => {
+    settingsPanel.classList.add("hidden");
+  });
+
+  settingsPanel.addEventListener("click", (e) => {
+    if (e.target === settingsPanel) {
+      settingsPanel.classList.add("hidden");
+    }
+  });
+
+  lightModeToggle.addEventListener("change", () => {
+    const prefs = readPrefs();
+    prefs.lightMode = lightModeToggle.checked;
+    savePrefs(prefs);
+    applyLightMode(lightModeToggle.checked);
+  });
+
+  volumeSlider.addEventListener("input", () => {
+    const vol = volumeSlider.value;
+    volumeDisplay.textContent = vol + "%";
+    const prefs = readPrefs();
+    prefs.volume = parseInt(vol);
+    savePrefs(prefs);
+    applyVolume(vol);
+  });
+
+  loadPreferences();
+})();
