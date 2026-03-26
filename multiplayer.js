@@ -27,6 +27,19 @@
   var myId        = clientId();
   var auth        = readAuth();
   var currentName = (auth && auth.username) ? auth.username : ("Guest-" + myId.slice(2, 6));
+  
+  // Update display name if changed in sidebar
+  var nameDisplay = document.getElementById("account-display-name");
+  if (nameDisplay) {
+    var observer = new MutationObserver(function () {
+      var newName = nameDisplay.textContent;
+      if (newName && newName !== currentName && newName !== "Loading...") {
+        currentName = newName;
+        if (roomId && isHost) { broadcast({ type: "user-renamed", fromId: myId, newName: newName }); }
+      }
+    });
+    observer.observe(nameDisplay, { childList: true, characterData: true, subtree: true });
+  }
 
   // --- DOM refs ----------------------------------------------------------------
   var roomMeta        = document.getElementById("mp-room-meta");
@@ -138,6 +151,26 @@
     chatLog.scrollTop = chatLog.scrollHeight;
   }
 
+  function updateMPHangmanFigure() {
+    var parts = [
+      document.getElementById("mp-hangman-head"),
+      document.getElementById("mp-hangman-body"),
+      document.getElementById("mp-hangman-left-arm"),
+      document.getElementById("mp-hangman-right-arm"),
+      document.getElementById("mp-hangman-left-leg"),
+      document.getElementById("mp-hangman-right-leg"),
+    ];
+    var state = roomState.games.hangman;
+    parts.forEach(function (part, index) {
+      if (part) { part.classList.toggle("visible", index < state.wrong); }
+    });
+    var stage = document.querySelector("#tab-multi .hangman-stage");
+    if (stage) {
+      stage.classList.toggle("lost", state.wrong >= state.maxWrong && state.started && !state.winner);
+      stage.classList.toggle("won", state.winner === "Guesser");
+    }
+  }
+
   function renderHangman() {
     var wrap = document.getElementById("mp-hangman-wrap");
     if (!wrap) { return; }
@@ -161,6 +194,8 @@
       : "_ _ _ _";
     if (wordText) { wordText.textContent = masked; }
     if (metaEl)   { metaEl.textContent   = "Round " + (state.round || 0) + " \u2022 Wrong: " + state.wrong + "/" + state.maxWrong; }
+
+    updateMPHangmanFigure();
 
     if (statusEl) {
       if (!acceptedInvite) {

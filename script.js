@@ -1564,3 +1564,84 @@ if (taxiCanvas) {
     if (multiTab) multiTab.click();
   }
 })();
+
+// ── Multiplayer Account Management ────────────────────────────────────
+(function initMultiplayerAccount() {
+  const AUTH_KEY = "ma-auth";
+  const nameDisplay = document.getElementById("account-display-name");
+  const changeNameBtn = document.getElementById("account-change-name-btn");
+  const createAccountBtn = document.getElementById("account-create-btn");
+
+  if (!nameDisplay || !changeNameBtn || !createAccountBtn) return;
+
+  function readAuth() {
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); } catch (e) { return null; }
+  }
+
+  function saveAuth(auth) {
+    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  }
+
+  function updateDisplay() {
+    const auth = readAuth();
+    const name = (auth && auth.username) ? auth.username : "Guest";
+    nameDisplay.textContent = name;
+    createAccountBtn.textContent = (auth && auth.username) ? "Change Password" : "Create Account";
+  }
+
+  changeNameBtn.addEventListener("click", () => {
+    const newName = prompt("Enter your new multiplayer name (letters and numbers only):", nameDisplay.textContent);
+    if (!newName || !newName.trim()) return;
+    
+    const cleanName = newName.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 20);
+    if (!cleanName) {
+      alert("Name must contain at least one letter or number.");
+      return;
+    }
+
+    const auth = readAuth() || {};
+    auth.username = cleanName;
+    saveAuth(auth);
+    updateDisplay();
+  });
+
+  createAccountBtn.addEventListener("click", () => {
+    const auth = readAuth();
+    const isUpdating = auth && auth.username;
+    const title = isUpdating ? "Change Password" : "Create Account";
+    
+    const username = isUpdating ? auth.username : prompt(`${title}\n\nEnter username (letters, numbers, -, _ only):`, "");
+    if (!username) return;
+    
+    const cleanUsername = username.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 20);
+    if (!cleanUsername) {
+      alert("Username must contain at least one letter or number.");
+      return;
+    }
+
+    const password = prompt(`${title}\n\nEnter password (minimum 6 characters):`, "");
+    if (!password) return;
+    
+    if (password.length < 6) {
+      alert("Password must be at least 6 characters.");
+      return;
+    }
+
+    const passwordConfirm = prompt(`${title}\n\nConfirm password:`, "");
+    if (password !== passwordConfirm) {
+      alert("Passwords do not match.");
+      return;
+    }
+
+    const newAuth = {
+      username: cleanUsername,
+      password: btoa(password),
+      createdAt: isUpdating ? (auth.createdAt || Date.now()) : Date.now(),
+    };
+    saveAuth(newAuth);
+    alert(`Account ${isUpdating ? "updated" : "created"} successfully!`);
+    updateDisplay();
+  });
+
+  updateDisplay();
+})();
