@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crazy Taxi | Midnight Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bungee:wght@400&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" data-page="crazy-taxi">
+    <div class="orb orb-left" aria-hidden="true"></div>
+    <div class="orb orb-right" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="sidebar-mark">MA</span>
+          <div>
+            <p class="sidebar-title">Midnight Arcade</p>
+            <p class="sidebar-subtitle">Game Room</p>
+          </div>
+        </div>
+
+        <label class="sidebar-search" for="sidebar-search-input">
+          <span>Search</span>
+          <input id="sidebar-search-input" type="search" placeholder="Search games" />
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Homepage navigation">
+          <a class="sidebar-link" href="index.html">Home</a>
+          <a class="sidebar-link" href="login.html">Login</a>
+          <a class="sidebar-link" href="hangman.html">Favorite Games</a>
+          <a class="sidebar-link active" href="crazy-taxi.html">Skilled Games</a>
+          <a class="sidebar-link" href="tic-tac-toe.html">Multiplayer</a>
+        </nav>
+
+        <button class="sidebar-settings" type="button">Settings</button>
+      </aside>
+
+      <div class="page-content">
+        <header class="hero page-hero">
+          <p class="eyebrow">Skilled Game</p>
+          <h1>Crazy Taxi</h1>
+          <p class="subtitle">Build speed, dodge traffic, and jump at the right moment to stay alive.</p>
+          <a class="back-link" href="index.html">Back to homepage</a>
+        </header>
+
+        <main class="games-grid single-game-grid">
+          <section class="game-card taxi-card" id="crazy-taxi-game">
+            <div class="taxi-header">
+              <div>
+                <h2>Crazy Taxi</h2>
+                <p class="game-description">Weave through slow traffic, build speed, and jump clean over cars when you are moving fast enough.</p>
+              </div>
+            </div>
+            <div class="taxi-hud">
+              <p id="taxi-status" class="status-text">Press the arrow keys to drive. Space jumps once you have enough speed.</p>
+              <div class="taxi-meters">
+                <div class="speedometer">
+                  <span class="speedometer-label">Speed</span>
+                  <strong><span id="taxi-speed">0</span> mph</strong>
+                  <div class="speedometer-track" aria-hidden="true">
+                    <div id="taxi-speed-fill" class="speedometer-fill"></div>
+                  </div>
+                </div>
+                <div class="speedometer">
+                  <span class="speedometer-label">Distance</span>
+                  <strong><span id="taxi-distance">0.0</span> mi</strong>
+                </div>
+              </div>
+            </div>
+            <div class="taxi-canvas-wrap">
+              <button id="taxi-menu-btn" class="taxi-menu-btn" type="button" aria-haspopup="dialog" aria-controls="taxi-menu" aria-expanded="false">
+                <span></span>
+                <span></span>
+                <span></span>
+              </button>
+              <canvas id="taxi-canvas" width="920" height="500" aria-label="Crazy Taxi game canvas"></canvas>
+              <div id="taxi-menu" class="taxi-menu" role="dialog" aria-modal="false" aria-labelledby="taxi-menu-title" hidden>
+                <div class="taxi-menu-panel">
+                  <div class="taxi-menu-header">
+                    <h3 id="taxi-menu-title">Paused</h3>
+                    <button id="taxi-close-menu-btn" class="taxi-close-btn" type="button" aria-label="Close settings menu">×</button>
+                  </div>
+                  <div class="taxi-menu-actions">
+                    <button id="taxi-resume-btn" type="button">Resume</button>
+                    <button id="taxi-reset-btn" class="ghost-btn" type="button">Restart Run</button>
+                  </div>
+                  <div class="taxi-menu-section">
+                    <p>Controls</p>
+                    <span>Left / Right: change lanes</span>
+                    <span>Up: accelerate</span>
+                    <span>Down: brake</span>
+                    <span>Space: jump</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <footer class="site-footer">
+          <p>Midnight Arcade • Dark mode by default</p>
+        </footer>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

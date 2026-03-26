@@ -1,0 +1,1541 @@
+const gameRoutes = [
+  {
+    path: "index.html",
+    title: "Home",
+    aliases: ["home", "homepage", "midnight arcade"],
+  },
+  {
+    path: "login.html",
+    title: "Login",
+    aliases: ["login", "sign in", "account"],
+  },
+  {
+    path: "number-guess.html",
+    title: "Number Guess",
+    aliases: ["number guess", "guess", "guessing game", "number guessing"],
+  },
+  {
+    path: "rock-paper-scissors.html",
+    title: "Rock Paper Scissors",
+    aliases: ["rock paper scissors", "rps", "rock paper", "scissors"],
+  },
+  {
+    path: "tic-tac-toe.html",
+    title: "Tic-Tac-Toe",
+    aliases: ["tic tac toe", "tictactoe", "tic tac", "xo"],
+  },
+  {
+    path: "hangman.html",
+    title: "Hangman",
+    aliases: ["hangman"],
+  },
+  {
+    path: "crazy-taxi.html",
+    title: "Crazy Taxi",
+    aliases: ["crazy taxi", "taxi", "driving game"],
+  },
+];
+
+function normalizeGameSearch(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function resolveGameRoute(value) {
+  const query = normalizeGameSearch(value);
+
+  if (!query) {
+    return null;
+  }
+
+  return (
+    gameRoutes.find((route) =>
+      [route.title, ...route.aliases]
+        .map((entry) => normalizeGameSearch(entry))
+        .some((entry) => entry === query || entry.includes(query) || query.includes(entry))
+    ) || null
+  );
+}
+
+const sidebarSearchInput = document.getElementById("sidebar-search-input");
+
+if (sidebarSearchInput) {
+  sidebarSearchInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    const route = resolveGameRoute(sidebarSearchInput.value);
+
+    if (!route) {
+      sidebarSearchInput.setCustomValidity("Game not found. Try Number Guess, Hangman, Crazy Taxi, Tic-Tac-Toe, or Rock Paper Scissors.");
+      sidebarSearchInput.reportValidity();
+      return;
+    }
+
+    sidebarSearchInput.setCustomValidity("");
+    window.location.href = route.path;
+  });
+
+  sidebarSearchInput.addEventListener("input", () => {
+    sidebarSearchInput.setCustomValidity("");
+  });
+}
+
+const guessInput = document.getElementById("guess-input");
+const guessBtn = document.getElementById("guess-btn");
+const resetGuessBtn = document.getElementById("reset-guess-btn");
+const guessFeedback = document.getElementById("guess-feedback");
+const guessAttempts = document.getElementById("guess-attempts");
+
+let secretNumber = randomNumber();
+let attemptCount = 0;
+
+function randomNumber() {
+  return Math.floor(Math.random() * 100) + 1;
+}
+
+function updateGuessStatus(message, cssClass = "") {
+  guessFeedback.textContent = message;
+  guessFeedback.className = `status-text ${cssClass}`.trim();
+}
+
+if (guessInput && guessBtn && resetGuessBtn && guessFeedback && guessAttempts) {
+  guessBtn.addEventListener("click", () => {
+    const value = Number(guessInput.value);
+
+    if (!value || value < 1 || value > 100) {
+      updateGuessStatus("Enter a number from 1 to 100.", "lose");
+      return;
+    }
+
+    attemptCount += 1;
+    guessAttempts.textContent = `Attempts: ${attemptCount}`;
+
+    if (value === secretNumber) {
+      updateGuessStatus("Correct! You cracked it.", "win");
+      return;
+    }
+
+    updateGuessStatus(value < secretNumber ? "Too low. Try higher." : "Too high. Try lower.");
+  });
+
+  resetGuessBtn.addEventListener("click", () => {
+    secretNumber = randomNumber();
+    attemptCount = 0;
+    guessInput.value = "";
+    guessAttempts.textContent = "Attempts: 0";
+    updateGuessStatus("New secret number generated.");
+  });
+}
+
+const rpsButtons = document.querySelectorAll(".rps-btn");
+const rpsFeedback = document.getElementById("rps-feedback");
+const rpsScore = document.getElementById("rps-score");
+const options = ["rock", "paper", "scissors"];
+
+let playerScore = 0;
+let cpuScore = 0;
+
+function resultForRound(player, cpu) {
+  if (player === cpu) {
+    return "draw";
+  }
+
+  if (
+    (player === "rock" && cpu === "scissors") ||
+    (player === "paper" && cpu === "rock") ||
+    (player === "scissors" && cpu === "paper")
+  ) {
+    return "win";
+  }
+
+  return "lose";
+}
+
+if (rpsButtons.length && rpsFeedback && rpsScore) {
+  rpsButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const playerChoice = button.dataset.choice;
+      const cpuChoice = options[Math.floor(Math.random() * options.length)];
+      const outcome = resultForRound(playerChoice, cpuChoice);
+
+      rpsFeedback.className = "status-text";
+
+      if (outcome === "draw") {
+        rpsFeedback.textContent = `Draw. Both picked ${playerChoice}.`;
+      }
+
+      if (outcome === "win") {
+        playerScore += 1;
+        rpsFeedback.textContent = `You win this round. CPU picked ${cpuChoice}.`;
+        rpsFeedback.classList.add("win");
+      }
+
+      if (outcome === "lose") {
+        cpuScore += 1;
+        rpsFeedback.textContent = `CPU wins this round with ${cpuChoice}.`;
+        rpsFeedback.classList.add("lose");
+      }
+
+      rpsScore.textContent = `You ${playerScore} : ${cpuScore} CPU`;
+    });
+  });
+}
+
+const ticCells = document.querySelectorAll(".tic-cell");
+const ticFeedback = document.getElementById("tic-feedback");
+const resetTicBtn = document.getElementById("reset-tic-btn");
+
+let board = Array(9).fill("");
+let currentPlayer = "X";
+let ticOver = false;
+
+const winningPatterns = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
+  [0, 4, 8],
+  [2, 4, 6],
+];
+
+function findWinner() {
+  for (const [a, b, c] of winningPatterns) {
+    if (board[a] && board[a] === board[b] && board[b] === board[c]) {
+      return board[a];
+    }
+  }
+
+  return null;
+}
+
+function updateTicFeedback(message, cssClass = "") {
+  ticFeedback.textContent = message;
+  ticFeedback.className = `status-text ${cssClass}`.trim();
+}
+
+if (ticCells.length && ticFeedback && resetTicBtn) {
+  ticCells.forEach((cell) => {
+    cell.addEventListener("click", () => {
+      if (ticOver) {
+        return;
+      }
+
+      const index = Number(cell.dataset.index);
+
+      if (board[index]) {
+        return;
+      }
+
+      board[index] = currentPlayer;
+      cell.textContent = currentPlayer;
+
+      const winner = findWinner();
+
+      if (winner) {
+        ticOver = true;
+        updateTicFeedback(`${winner} wins!`, "win");
+        return;
+      }
+
+      if (board.every(Boolean)) {
+        ticOver = true;
+        updateTicFeedback("Draw game. Reset for another round.");
+        return;
+      }
+
+      currentPlayer = currentPlayer === "X" ? "O" : "X";
+      updateTicFeedback(`${currentPlayer}'s turn.`);
+    });
+  });
+
+  resetTicBtn.addEventListener("click", () => {
+    board = Array(9).fill("");
+    currentPlayer = "X";
+    ticOver = false;
+
+    ticCells.forEach((cell) => {
+      cell.textContent = "";
+    });
+
+    updateTicFeedback("X starts.");
+  });
+}
+
+const hangmanTheme = document.getElementById("hangman-theme");
+const hangmanDifficulty = document.getElementById("hangman-difficulty");
+const hangmanNewBtn = document.getElementById("hangman-new-btn");
+const hangmanHint = document.getElementById("hangman-hint");
+const hangmanWord = document.getElementById("hangman-word");
+const hangmanFeedback = document.getElementById("hangman-feedback");
+const hangmanLives = document.getElementById("hangman-lives");
+const hangmanGuessed = document.getElementById("hangman-guessed");
+const hangmanLetters = document.getElementById("hangman-letters");
+const hangmanStage = document.getElementById("hangman-stage");
+const hangmanBanner = document.getElementById("hangman-banner");
+const hangmanConfetti = document.getElementById("hangman-confetti");
+
+const hangmanParts = [
+  document.getElementById("hangman-head"),
+  document.getElementById("hangman-body"),
+  document.getElementById("hangman-left-arm"),
+  document.getElementById("hangman-right-arm"),
+  document.getElementById("hangman-left-leg"),
+  document.getElementById("hangman-right-leg"),
+];
+
+const MAX_HANGMAN_MISSES = 6;
+const confettiColors = ["#42e8b4", "#ffcc66", "#ff6f87", "#5ec8ff", "#ffffff"];
+
+const hangmanWords = {
+  sports: {
+    easy: ["golf", "ball", "race", "coach", "tennis"],
+    medium: ["stadium", "baseball", "referee", "fitness", "cycling"],
+    hard: ["badminton", "decathlon", "gymnastics", "waterski", "triathlon"],
+  },
+  movies: {
+    easy: ["jaws", "rocky", "shrek", "frozen", "avatar"],
+    medium: ["titanic", "inception", "gladiator", "goodfellas", "casablanca"],
+    hard: ["interstellar", "godfather", "oppenheimer", "ratatouille", "jurassicpark"],
+  },
+  entertainment: {
+    easy: ["music", "dance", "radio", "album", "comic"],
+    medium: ["festival", "karaoke", "broadway", "podcast", "concert"],
+    hard: ["orchestra", "headliner", "streaming", "television", "celebrity"],
+  },
+  everyday: {
+    easy: ["chair", "plate", "phone", "socks", "brush"],
+    medium: ["backpack", "microwave", "notebook", "blanket", "charger"],
+    hard: ["headphones", "flashlight", "bookshelf", "toothbrush", "refrigerator"],
+  },
+};
+
+const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+let currentHangmanWord = "";
+let hangmanGuesses = [];
+let wrongGuessCount = 0;
+let hangmanOver = false;
+
+function formatThemeLabel(theme) {
+  if (theme === "movies") {
+    return "Movies";
+  }
+
+  if (theme === "entertainment") {
+    return "Entertainment";
+  }
+
+  if (theme === "everyday") {
+    return "Everyday Items";
+  }
+
+  return "Sports";
+}
+
+function updateHangmanMessage(message, cssClass = "") {
+  hangmanFeedback.textContent = message;
+  hangmanFeedback.className = `status-text ${cssClass}`.trim();
+}
+
+function renderHangmanWord() {
+  const maskedWord = currentHangmanWord
+    .split("")
+    .map((letter) => (hangmanGuesses.includes(letter) ? letter : "_"))
+    .join(" ");
+
+  hangmanWord.textContent = maskedWord;
+}
+
+function updateHangmanMeta() {
+  hangmanHint.textContent = `Theme: ${formatThemeLabel(hangmanTheme.value)} • Difficulty: ${hangmanDifficulty.value}`;
+  hangmanLives.textContent = `Mistakes left: ${MAX_HANGMAN_MISSES - wrongGuessCount}`;
+  hangmanGuessed.textContent = `Guessed: ${hangmanGuesses.length ? hangmanGuesses.join(", ") : "None"}`;
+}
+
+function updateHangmanDrawing() {
+  hangmanParts.forEach((part, index) => {
+    part.classList.toggle("visible", index < wrongGuessCount);
+  });
+}
+
+function setHangmanBanner(text = "", cssClass = "") {
+  hangmanBanner.textContent = text;
+  hangmanBanner.className = `hangman-banner ${cssClass}`.trim();
+
+  if (text) {
+    hangmanBanner.classList.add("visible");
+  }
+}
+
+function createConfetti() {
+  hangmanConfetti.innerHTML = "";
+
+  for (let index = 0; index < 24; index += 1) {
+    const piece = document.createElement("span");
+    const drift = `${Math.floor(Math.random() * 80) - 40}px`;
+    const delay = `${Math.floor(Math.random() * 500)}ms`;
+    const left = `${Math.floor(Math.random() * 100)}%`;
+    const color = confettiColors[index % confettiColors.length];
+
+    piece.className = "confetti-piece";
+    piece.style.left = left;
+    piece.style.background = color;
+    piece.style.setProperty("--delay", delay);
+    piece.style.setProperty("--drift", drift);
+    hangmanConfetti.appendChild(piece);
+  }
+}
+
+function resetHangmanCelebration() {
+  hangmanStage.classList.remove("won");
+  hangmanStage.classList.remove("lost");
+
+  void hangmanStage.offsetWidth;
+}
+
+function triggerHangmanWinCelebration() {
+  createConfetti();
+  resetHangmanCelebration();
+  hangmanStage.classList.add("won");
+}
+
+function triggerHangmanLossState() {
+  hangmanStage.classList.remove("won");
+  hangmanStage.classList.add("lost");
+}
+
+function setLetterButtonsDisabled(disabled) {
+  const buttons = hangmanLetters.querySelectorAll(".letter-btn");
+  buttons.forEach((button) => {
+    button.disabled = disabled || hangmanGuesses.includes(button.dataset.letter);
+  });
+}
+
+function handleHangmanGuess(letter) {
+  if (hangmanOver || hangmanGuesses.includes(letter)) {
+    return;
+  }
+
+  hangmanGuesses.push(letter);
+
+  if (!currentHangmanWord.includes(letter)) {
+    wrongGuessCount += 1;
+    updateHangmanMessage(`${letter} is not in the word.`, "lose");
+  } else {
+    updateHangmanMessage(`${letter} is in the word. Keep going.`, "win");
+  }
+
+  updateHangmanDrawing();
+  renderHangmanWord();
+  updateHangmanMeta();
+  setLetterButtonsDisabled(false);
+
+  const isSolved = currentHangmanWord.split("").every((letterInWord) => hangmanGuesses.includes(letterInWord));
+
+  if (isSolved) {
+    hangmanOver = true;
+    triggerHangmanWinCelebration();
+    setHangmanBanner("You win", "win-text");
+    updateHangmanMessage("You win", "win");
+    setLetterButtonsDisabled(true);
+    return;
+  }
+
+  if (wrongGuessCount === MAX_HANGMAN_MISSES) {
+    hangmanOver = true;
+    hangmanWord.textContent = currentHangmanWord.split("").join(" ");
+    triggerHangmanLossState();
+    setHangmanBanner("Game Over", "lose-text");
+    updateHangmanMessage("Game Over", "lose");
+    setLetterButtonsDisabled(true);
+  }
+}
+
+function createLetterButtons() {
+  hangmanLetters.innerHTML = "";
+
+  alphabet.forEach((letter) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "letter-btn";
+    button.dataset.letter = letter;
+    button.textContent = letter;
+    button.addEventListener("click", () => handleHangmanGuess(letter));
+    hangmanLetters.appendChild(button);
+  });
+}
+
+function startHangmanRound() {
+  const words = hangmanWords[hangmanTheme.value][hangmanDifficulty.value];
+  currentHangmanWord = words[Math.floor(Math.random() * words.length)].toUpperCase();
+  hangmanGuesses = [];
+  wrongGuessCount = 0;
+  hangmanOver = false;
+  hangmanConfetti.innerHTML = "";
+  hangmanStage.classList.remove("won");
+  hangmanStage.classList.remove("lost");
+
+  updateHangmanDrawing();
+  setHangmanBanner();
+  renderHangmanWord();
+  updateHangmanMeta();
+  updateHangmanMessage("Choose a letter to begin.");
+  setLetterButtonsDisabled(false);
+}
+
+if (
+  hangmanTheme &&
+  hangmanDifficulty &&
+  hangmanNewBtn &&
+  hangmanHint &&
+  hangmanWord &&
+  hangmanFeedback &&
+  hangmanLives &&
+  hangmanGuessed &&
+  hangmanLetters &&
+  hangmanStage &&
+  hangmanBanner &&
+  hangmanConfetti &&
+  hangmanParts.every(Boolean)
+) {
+  hangmanTheme.addEventListener("change", startHangmanRound);
+  hangmanDifficulty.addEventListener("change", startHangmanRound);
+  hangmanNewBtn.addEventListener("click", startHangmanRound);
+
+  createLetterButtons();
+  startHangmanRound();
+}
+
+const taxiCanvas = document.getElementById("taxi-canvas");
+const taxiStatus = document.getElementById("taxi-status");
+const taxiSpeed = document.getElementById("taxi-speed");
+const taxiSpeedFill = document.getElementById("taxi-speed-fill");
+const taxiDistance = document.getElementById("taxi-distance");
+const taxiResetBtn = document.getElementById("taxi-reset-btn");
+const taxiMenuBtn = document.getElementById("taxi-menu-btn");
+const taxiMenu = document.getElementById("taxi-menu");
+const taxiResumeBtn = document.getElementById("taxi-resume-btn");
+const taxiCloseMenuBtn = document.getElementById("taxi-close-menu-btn");
+
+if (taxiCanvas) {
+  const taxiContext = taxiCanvas.getContext("2d");
+  const taxiKeys = {
+    ArrowUp: false,
+    ArrowDown: false,
+  };
+
+  const jumpSpeedThreshold = 70;
+  const stageDistanceMeters = 3000;
+  const runTimeSeconds = 63;
+  const bonusTimeSeconds = 60;
+  const finishLineRevealDistance = 800;
+  const horizonY = 126;
+  const roadTopWidth = 110;
+  const roadBottomWidth = 760;
+  const playerBaseY = 430;
+  const taxiPalette = ["#e12b1a", "#6f3cff", "#ff9f1c", "#1f9cff", "#1fb86c"];
+  const maxTaxiSpeed = 130;
+
+  const taxiState = {
+    player: {
+      lane: 1,
+      laneVisual: 1,
+      speed: 0,
+      jumpOffset: 0,
+      jumpVelocity: 0,
+      jumping: false,
+      crashTimer: 0,
+      knockback: 0,
+    },
+    traffic: [],
+    roadsideItems: [],
+    spawnTimer: 0,
+    dashOffset: 0,
+    startLineOffset: 0,
+    distanceMeters: stageDistanceMeters,
+    timeLeft: runTimeSeconds,
+    level: 1,
+    score: 0,
+    message: "Press the arrow keys to drive. Space jumps once you have enough speed.",
+    messageTimer: 0,
+    paused: false,
+    lastTime: 0,
+  };
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(start, end, amount) {
+    return start + (end - start) * amount;
+  }
+
+  function randomBetween(min, max) {
+    return Math.random() * (max - min) + min;
+  }
+
+  function setTaxiMessage(message, duration = 0) {
+    taxiState.message = message;
+    taxiState.messageTimer = duration;
+  }
+
+  function createRoadsideItem(side, type, depth = randomBetween(0.05, 0.95)) {
+    return {
+      side,
+      type,
+      depth,
+      variant: Math.floor(randomBetween(0, 3)),
+      tint: randomBetween(0.88, 1.08),
+    };
+  }
+
+  function targetTrafficCount() {
+    return taxiState.level === 1 ? 4 : 7;
+  }
+
+  function minLaneTrafficGap() {
+    return taxiState.level === 1 ? 0.31 : 0.27;
+  }
+
+  function trafficSpawnInterval() {
+    return taxiState.level === 1 ? randomBetween(1.2, 1.8) : randomBetween(0.8, 1.15);
+  }
+
+  function resetRoadsideItems() {
+    taxiState.roadsideItems = [];
+
+    for (let index = 0; index < 34; index += 1) {
+      taxiState.roadsideItems.push(createRoadsideItem("left", index % 10 === 0 ? "house" : "grass", 0.03 + index * 0.04));
+      taxiState.roadsideItems.push(createRoadsideItem("right", index % 11 === 0 ? "house" : "grass", 0.05 + index * 0.04));
+    }
+  }
+
+  function respawnRoadsideItem(item) {
+    const nextType = Math.random() > 0.9 ? "house" : "grass";
+    const sameSideItems = taxiState.roadsideItems
+      .filter((entry) => entry !== item && entry.side === item.side && entry.type === nextType)
+      .map((entry) => entry.depth);
+    const nearestDepth = sameSideItems.length ? Math.min(...sameSideItems) : 0.12;
+    const gap = nextType === "house" ? 0.34 : 0.045;
+
+    Object.assign(item, createRoadsideItem(item.side, nextType, nearestDepth - gap));
+  }
+
+  function canPlaceTrafficCar(lane, depth) {
+    return taxiState.traffic.every((car) => car.lane !== lane || Math.abs(car.depth - depth) >= minLaneTrafficGap());
+  }
+
+  function beginNextTaxiLevel() {
+    taxiState.level += 1;
+    taxiState.distanceMeters = stageDistanceMeters;
+    taxiState.timeLeft += bonusTimeSeconds;
+    taxiState.startLineOffset = taxiCanvas.height + 120;
+    taxiState.score += 1000 * taxiState.level;
+    taxiState.spawnTimer = trafficSpawnInterval();
+    setTaxiMessage(`Level ${taxiState.level}. +${bonusTimeSeconds} seconds. Traffic is getting busier.`, 2.1);
+
+    while (taxiState.traffic.length < targetTrafficCount()) {
+      spawnTrafficCar(randomBetween(0.08, 0.4));
+    }
+  }
+
+  function clearTaxiKeys() {
+    taxiKeys.ArrowUp = false;
+    taxiKeys.ArrowDown = false;
+  }
+
+  function openTaxiMenu() {
+    taxiState.paused = true;
+    clearTaxiKeys();
+    taxiMenu.hidden = false;
+    taxiMenuBtn.setAttribute("aria-expanded", "true");
+  }
+
+  function closeTaxiMenu() {
+    taxiState.paused = false;
+    taxiMenu.hidden = true;
+    taxiMenuBtn.setAttribute("aria-expanded", "false");
+    taxiState.lastTime = 0;
+  }
+
+  function isTaxiCrashed() {
+    return taxiState.player.crashTimer > 0;
+  }
+
+  function perspectiveWidth(depth) {
+    return lerp(roadTopWidth, roadBottomWidth, depth);
+  }
+
+  function screenYForDepth(depth) {
+    return lerp(horizonY, playerBaseY, depth);
+  }
+
+  function laneCenterAtDepth(laneIndex, depth) {
+    const width = perspectiveWidth(depth);
+    const left = taxiCanvas.width / 2 - width / 2;
+    return left + (width / 3) * (laneIndex + 0.5);
+  }
+
+  function spawnTrafficCar(initialDepth = randomBetween(0.08, 0.42)) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const depth = attempt === 0 ? initialDepth : randomBetween(0.08, 0.36);
+      const laneOrder = [0, 1, 2].sort(() => Math.random() - 0.5);
+      const lane = laneOrder.find((candidateLane) => canPlaceTrafficCar(candidateLane, depth));
+
+      if (lane === undefined) {
+        continue;
+      }
+
+      taxiState.traffic.push({
+        lane,
+        depth,
+        speed: randomBetween(18, 42),
+        color: taxiPalette[Math.floor(Math.random() * taxiPalette.length)],
+        number: Math.floor(randomBetween(10, 99)),
+        roofSign: Math.random() > 0.72,
+      });
+
+      return true;
+    }
+
+    return false;
+  }
+
+  function enforceTrafficSpacing() {
+    const laneGap = minLaneTrafficGap();
+
+    for (let lane = 0; lane < 3; lane += 1) {
+      const laneCars = taxiState.traffic.filter((car) => car.lane === lane).sort((first, second) => first.depth - second.depth);
+
+      for (let index = 1; index < laneCars.length; index += 1) {
+        const leadCar = laneCars[index - 1];
+        const trailingCar = laneCars[index];
+        const currentGap = trailingCar.depth - leadCar.depth;
+
+        if (currentGap < laneGap) {
+          trailingCar.depth = leadCar.depth + laneGap;
+        }
+      }
+    }
+  }
+
+  function resetTaxiGame() {
+    taxiState.player.lane = 1;
+    taxiState.player.laneVisual = 1;
+    taxiState.player.speed = 0;
+    taxiState.player.jumpOffset = 0;
+    taxiState.player.jumpVelocity = 0;
+    taxiState.player.jumping = false;
+    taxiState.player.crashTimer = 0;
+    taxiState.player.knockback = 0;
+    taxiState.traffic = [];
+    taxiState.spawnTimer = trafficSpawnInterval();
+    taxiState.dashOffset = 0;
+    taxiState.startLineOffset = 0;
+    taxiState.distanceMeters = stageDistanceMeters;
+    taxiState.timeLeft = runTimeSeconds;
+    taxiState.level = 1;
+    taxiState.score = 0;
+    taxiState.messageTimer = 0;
+    taxiState.paused = false;
+    taxiState.lastTime = 0;
+    clearTaxiKeys();
+    taxiMenu.hidden = true;
+    taxiMenuBtn.setAttribute("aria-expanded", "false");
+
+    for (let index = 0; index < targetTrafficCount(); index += 1) {
+      spawnTrafficCar(0.12 + index * 0.17);
+    }
+
+    resetRoadsideItems();
+
+    setTaxiMessage("Press the arrow keys to drive. Space jumps once you have enough speed.");
+    taxiSpeed.textContent = "0";
+    taxiDistance.textContent = (stageDistanceMeters / 1609).toFixed(1);
+  }
+
+  function updateTaxiStatus(deltaTime) {
+    if (taxiState.paused) {
+      taxiStatus.textContent = "Game paused. Resume when you are ready to drive again.";
+      taxiStatus.className = "status-text";
+      return;
+    }
+
+    if (taxiState.messageTimer > 0) {
+      taxiState.messageTimer = Math.max(0, taxiState.messageTimer - deltaTime);
+      taxiStatus.textContent = taxiState.message;
+      taxiStatus.className = "status-text";
+
+      if (isTaxiCrashed() || taxiState.timeLeft <= 0) {
+        taxiStatus.classList.add("lose");
+      }
+
+      return;
+    }
+
+    taxiStatus.className = "status-text";
+
+    if (isTaxiCrashed()) {
+      taxiStatus.textContent = "Crash. You got shoved back and lost speed, but the run is still live.";
+      taxiStatus.classList.add("lose");
+      return;
+    }
+
+    if (taxiState.distanceMeters <= 0) {
+      taxiStatus.textContent = "Finish line crossed. Next level is loading in.";
+      taxiStatus.classList.add("win");
+      return;
+    }
+
+    if (taxiState.timeLeft <= 0) {
+      taxiStatus.textContent = "Out of time. Restart the run and keep your speed up.";
+      taxiStatus.classList.add("lose");
+      return;
+    }
+
+    if (taxiState.player.jumping) {
+      taxiStatus.textContent = "Airborne. Clear the traffic and line up the landing.";
+      taxiStatus.classList.add("win");
+      return;
+    }
+
+    if (taxiState.player.speed >= jumpSpeedThreshold) {
+      taxiStatus.textContent = "Jump is live. Space launches the taxi over slower cars.";
+      taxiStatus.classList.add("win");
+      return;
+    }
+
+    taxiStatus.textContent = "Build to 70 mph, then use space to jump traffic.";
+  }
+
+  function updateTaxiGame(deltaTime) {
+    if (taxiState.paused) {
+      updateTaxiStatus(0);
+      return;
+    }
+
+    const player = taxiState.player;
+    const runActive = taxiState.timeLeft > 0 && taxiState.distanceMeters > 0;
+
+    player.crashTimer = Math.max(0, player.crashTimer - deltaTime);
+    player.knockback = Math.max(0, player.knockback - 90 * deltaTime);
+
+    if (runActive) {
+      if (taxiKeys.ArrowUp) {
+        player.speed = Math.min(130, player.speed + 74 * deltaTime);
+      }
+
+      if (taxiKeys.ArrowDown) {
+        player.speed = Math.max(0, player.speed - 108 * deltaTime);
+      } else {
+        player.speed = Math.max(0, player.speed - 26 * deltaTime);
+      }
+
+      const worldSpeed = player.speed;
+
+      player.laneVisual += (player.lane - player.laneVisual) * Math.min(1, deltaTime * 8);
+      taxiState.timeLeft = Math.max(0, taxiState.timeLeft - deltaTime);
+      taxiState.distanceMeters = Math.max(0, taxiState.distanceMeters - ((worldSpeed * deltaTime) / 2.2) * 3);
+      taxiState.score += worldSpeed * deltaTime * 3;
+      taxiState.dashOffset = (taxiState.dashOffset - worldSpeed * deltaTime * 3.2 + 86) % 86;
+      taxiState.startLineOffset += worldSpeed * deltaTime * 0.9;
+
+      if (player.jumping) {
+        player.jumpOffset += player.jumpVelocity * deltaTime;
+        player.jumpVelocity -= 1400 * deltaTime;
+
+        if (player.jumpOffset <= 0) {
+          player.jumpOffset = 0;
+          player.jumpVelocity = 0;
+          player.jumping = false;
+        }
+      }
+
+      if (worldSpeed > 0) {
+        taxiState.spawnTimer -= deltaTime;
+      }
+
+      if (taxiState.spawnTimer <= 0 && taxiState.traffic.length < targetTrafficCount()) {
+        spawnTrafficCar();
+        taxiState.spawnTimer = trafficSpawnInterval();
+      }
+
+      taxiState.traffic.forEach((car) => {
+        car.depth += Math.max(0, (worldSpeed - car.speed + 14) / 170) * deltaTime;
+      });
+
+      enforceTrafficSpacing();
+
+      taxiState.roadsideItems.forEach((item) => {
+        item.depth += Math.max(0, worldSpeed / 2900) * deltaTime;
+
+        if (item.depth > 1.08) {
+          respawnRoadsideItem(item);
+        }
+      });
+
+      taxiState.traffic = taxiState.traffic.filter((car) => {
+        if (car.depth > 1.12) {
+          if (!isTaxiCrashed()) {
+            taxiState.score += 120;
+          }
+
+          return false;
+        }
+
+        return true;
+      });
+
+      for (const car of taxiState.traffic) {
+        if (car.lane === player.lane && car.depth > 0.78 && car.depth < 0.95 && player.jumpOffset < 95 && player.crashTimer === 0) {
+          player.crashTimer = 0.9;
+          player.speed = Math.max(18, player.speed * 0.45);
+          player.knockback = 38;
+          car.depth = 1.08;
+          setTaxiMessage("Crash. You got knocked back and lost speed. Floor it to recover.", 1.4);
+          break;
+        }
+      }
+
+      if (taxiState.distanceMeters <= 0) {
+        beginNextTaxiLevel();
+      }
+
+      if (taxiState.timeLeft <= 0 && taxiState.distanceMeters > 0) {
+        player.speed = 0;
+        setTaxiMessage("Out of time. Restart the run and keep your pace up.", 1.8);
+      }
+    } else {
+      player.laneVisual += (player.lane - player.laneVisual) * Math.min(1, deltaTime * 8);
+    }
+
+    taxiSpeed.textContent = Math.round(player.speed).toString();
+    taxiSpeedFill.style.width = `${(player.speed / maxTaxiSpeed) * 100}%`;
+    taxiDistance.textContent = Math.max(0, taxiState.distanceMeters / 1609).toFixed(1);
+    updateTaxiStatus(deltaTime);
+  }
+
+  function drawOutlinedText(text, x, y, size, align = "left") {
+    taxiContext.font = `700 ${size}px "Bungee", "Segoe UI", sans-serif`;
+    taxiContext.textAlign = align;
+    taxiContext.lineJoin = "round";
+    taxiContext.lineWidth = Math.max(3, size * 0.18);
+    taxiContext.strokeStyle = "#7aa6de";
+    taxiContext.strokeText(text, x, y);
+    taxiContext.fillStyle = "#ffffff";
+    taxiContext.fillText(text, x, y);
+  }
+
+  function drawHouse(x, y, scale, bodyColor, roofColor) {
+    const sideColor = roofColor === "#b25b32" ? "#cf8d54" : roofColor === "#7f5d51" ? "#d3c1b9" : "#f4cf7b";
+
+    taxiContext.save();
+    taxiContext.translate(x, y);
+    taxiContext.scale(scale, scale);
+    taxiContext.fillStyle = bodyColor;
+    taxiContext.strokeStyle = "#1b1b1b";
+    taxiContext.lineWidth = 2;
+    taxiContext.beginPath();
+    taxiContext.moveTo(34, -26);
+    taxiContext.lineTo(50, -36);
+    taxiContext.lineTo(50, 16);
+    taxiContext.lineTo(34, 26);
+    taxiContext.closePath();
+    taxiContext.fillStyle = sideColor;
+    taxiContext.fill();
+    taxiContext.stroke();
+
+    taxiContext.fillRect(-34, -26, 68, 52);
+    taxiContext.strokeRect(-34, -26, 68, 52);
+    taxiContext.fillStyle = roofColor;
+    taxiContext.beginPath();
+    taxiContext.moveTo(-40, -24);
+    taxiContext.lineTo(0, -52);
+    taxiContext.lineTo(40, -24);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+    taxiContext.beginPath();
+    taxiContext.moveTo(40, -24);
+    taxiContext.lineTo(54, -34);
+    taxiContext.lineTo(14, -62);
+    taxiContext.lineTo(0, -52);
+    taxiContext.closePath();
+    taxiContext.fillStyle = roofColor;
+    taxiContext.fill();
+    taxiContext.stroke();
+    taxiContext.fillStyle = "#f9f2b4";
+    taxiContext.fillRect(-22, -12, 12, 14);
+    taxiContext.fillRect(10, -12, 12, 14);
+    taxiContext.fillRect(36, -6, 8, 12);
+    taxiContext.fillStyle = "#6f4e37";
+    taxiContext.fillRect(-6, 4, 12, 22);
+    taxiContext.restore();
+  }
+
+  function drawShrub(x, y, scale) {
+    const bladeColor = "#2ea941";
+    const edgeColor = "#126225";
+
+    taxiContext.save();
+    taxiContext.translate(x, y);
+    taxiContext.scale(scale, scale);
+    taxiContext.fillStyle = "rgba(17, 81, 28, 0.25)";
+    taxiContext.beginPath();
+    taxiContext.ellipse(0, 14, 26, 6, 0, 0, Math.PI * 2);
+    taxiContext.fill();
+    taxiContext.fillStyle = bladeColor;
+    taxiContext.strokeStyle = edgeColor;
+    taxiContext.lineWidth = 2;
+
+    for (const xOffset of [-16, -8, 0, 8, 16]) {
+      taxiContext.beginPath();
+      taxiContext.moveTo(xOffset, 14);
+      taxiContext.lineTo(xOffset - 4, -10);
+      taxiContext.lineTo(xOffset + 2, -2);
+      taxiContext.lineTo(xOffset + 6, -16);
+      taxiContext.lineTo(xOffset + 8, 14);
+      taxiContext.closePath();
+      taxiContext.fill();
+      taxiContext.stroke();
+    }
+
+    taxiContext.restore();
+  }
+
+  function drawRoadsideItem(item) {
+    const depth = clamp(item.depth, 0.02, 1);
+    const y = screenYForDepth(depth);
+    const roadHalf = perspectiveWidth(depth) / 2;
+    const sideOffset = item.side === "left" ? -1 : 1;
+    const grassTuftScale = 0.54;
+    const roadClearance = item.type === "house" ? lerp(170, 280, depth) : lerp(44, 110, depth);
+    const x =
+      taxiCanvas.width / 2 +
+      sideOffset * (roadHalf + roadClearance);
+    const scale = item.type === "house" ? lerp(1.25, 4.05, depth) : grassTuftScale;
+
+    if (item.type === "house") {
+      const palettes = [
+        ["#ffc86b", "#b25b32"],
+        ["#c7e0ff", "#7f5d51"],
+        ["#ffe5a9", "#8f6a44"],
+      ];
+      const [bodyColor, roofColor] = palettes[item.variant % palettes.length];
+      drawHouse(x, y - lerp(4, 18, depth), scale, bodyColor, roofColor);
+      return;
+    }
+
+    drawShrub(x, y + 20, scale);
+  }
+
+  function drawPerspectiveCar(centerX, baseY, scale, color, isPlayer = false, crashed = false, jumpOffset = 0, roofSign = false) {
+    taxiContext.save();
+    taxiContext.translate(centerX, baseY - jumpOffset);
+
+    if (crashed) {
+      taxiContext.rotate(-0.08);
+    }
+
+    const bodyWidth = 130 * scale;
+    const bodyHeight = 76 * scale;
+    const darkColor = "#111111";
+    const lowerBodyColor = isPlayer ? "#b11412" : "#2e247d";
+    const sidePanelColor = isPlayer ? "#d71d17" : "#4539a3";
+    const windowColor = isPlayer ? "#3b65ff" : "#6b5bdf";
+
+    taxiContext.fillStyle = "rgba(0, 0, 0, 0.22)";
+    taxiContext.beginPath();
+    taxiContext.ellipse(0, 18 * scale + Math.min(12, jumpOffset * 0.08), 56 * scale, 16 * scale, 0, 0, Math.PI * 2);
+    taxiContext.fill();
+
+    const bodyGradient = taxiContext.createLinearGradient(0, -bodyHeight * 0.44, 0, bodyHeight * 0.5);
+    bodyGradient.addColorStop(0, color);
+    bodyGradient.addColorStop(0.58, color);
+    bodyGradient.addColorStop(1, lowerBodyColor);
+    taxiContext.fillStyle = bodyGradient;
+    taxiContext.strokeStyle = darkColor;
+    taxiContext.lineWidth = 4 * scale;
+
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.52, bodyHeight * 0.48);
+    taxiContext.lineTo(-bodyWidth * 0.58, -bodyHeight * 0.02);
+    taxiContext.lineTo(-bodyWidth * 0.22, -bodyHeight * 0.44);
+    taxiContext.lineTo(bodyWidth * 0.22, -bodyHeight * 0.44);
+    taxiContext.lineTo(bodyWidth * 0.58, -bodyHeight * 0.02);
+    taxiContext.lineTo(bodyWidth * 0.52, bodyHeight * 0.48);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+
+    taxiContext.fillStyle = sidePanelColor;
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.56, bodyHeight * 0.11);
+    taxiContext.lineTo(-bodyWidth * 0.36, bodyHeight * 0.26);
+    taxiContext.lineTo(-bodyWidth * 0.18, bodyHeight * 0.18);
+    taxiContext.lineTo(-bodyWidth * 0.28, -bodyHeight * 0.02);
+    taxiContext.lineTo(-bodyWidth * 0.5, -bodyHeight * 0.01);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+    taxiContext.beginPath();
+    taxiContext.moveTo(bodyWidth * 0.56, bodyHeight * 0.11);
+    taxiContext.lineTo(bodyWidth * 0.36, bodyHeight * 0.26);
+    taxiContext.lineTo(bodyWidth * 0.18, bodyHeight * 0.18);
+    taxiContext.lineTo(bodyWidth * 0.28, -bodyHeight * 0.02);
+    taxiContext.lineTo(bodyWidth * 0.5, -bodyHeight * 0.01);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+
+    taxiContext.fillStyle = windowColor;
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.18, -bodyHeight * 0.36);
+    taxiContext.lineTo(bodyWidth * 0.18, -bodyHeight * 0.36);
+    taxiContext.lineTo(bodyWidth * 0.3, -bodyHeight * 0.04);
+    taxiContext.lineTo(-bodyWidth * 0.3, -bodyHeight * 0.04);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+
+    taxiContext.fillStyle = "rgba(255, 255, 255, 0.18)";
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.12, -bodyHeight * 0.31);
+    taxiContext.lineTo(0, -bodyHeight * 0.29);
+    taxiContext.lineTo(-bodyWidth * 0.06, -bodyHeight * 0.09);
+    taxiContext.lineTo(-bodyWidth * 0.2, -bodyHeight * 0.12);
+    taxiContext.closePath();
+    taxiContext.fill();
+
+    taxiContext.fillStyle = lowerBodyColor;
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.34, -bodyHeight * 0.04);
+    taxiContext.lineTo(bodyWidth * 0.34, -bodyHeight * 0.04);
+    taxiContext.lineTo(bodyWidth * 0.24, bodyHeight * 0.08);
+    taxiContext.lineTo(-bodyWidth * 0.24, bodyHeight * 0.08);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+
+    if (isPlayer || roofSign) {
+      taxiContext.fillStyle = "#f3f1d1";
+      taxiContext.fillRect(-bodyWidth * 0.14, -bodyHeight * 0.56, bodyWidth * 0.28, bodyHeight * 0.12);
+      taxiContext.strokeRect(-bodyWidth * 0.14, -bodyHeight * 0.56, bodyWidth * 0.28, bodyHeight * 0.12);
+    }
+
+    taxiContext.fillStyle = darkColor;
+    taxiContext.font = `${Math.max(8, 14 * scale)}px "Space Grotesk", sans-serif`;
+    taxiContext.textAlign = "center";
+    if (isPlayer || roofSign) {
+      taxiContext.fillText(isPlayer ? "TAXI" : "CAB", 0, -bodyHeight * 0.47);
+    }
+
+    taxiContext.fillStyle = color;
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.56, bodyHeight * 0.12);
+    taxiContext.lineTo(-bodyWidth * 0.34, bodyHeight * 0.28);
+    taxiContext.lineTo(bodyWidth * 0.34, bodyHeight * 0.28);
+    taxiContext.lineTo(bodyWidth * 0.56, bodyHeight * 0.12);
+    taxiContext.lineTo(bodyWidth * 0.5, bodyHeight * 0.22);
+    taxiContext.lineTo(-bodyWidth * 0.5, bodyHeight * 0.22);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+
+    taxiContext.fillStyle = "rgba(255, 255, 255, 0.12)";
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.43, bodyHeight * 0.08);
+    taxiContext.lineTo(0, bodyHeight * 0.14);
+    taxiContext.lineTo(bodyWidth * 0.36, bodyHeight * 0.09);
+    taxiContext.lineTo(bodyWidth * 0.24, bodyHeight * 0.03);
+    taxiContext.lineTo(-bodyWidth * 0.28, bodyHeight * 0.02);
+    taxiContext.closePath();
+    taxiContext.fill();
+
+    taxiContext.fillRect(-bodyWidth * 0.6, bodyHeight * 0.08, bodyWidth * 1.2, bodyHeight * 0.11);
+    taxiContext.strokeRect(-bodyWidth * 0.6, bodyHeight * 0.08, bodyWidth * 1.2, bodyHeight * 0.11);
+
+    taxiContext.fillStyle = "#101010";
+    taxiContext.fillRect(-bodyWidth * 0.47, bodyHeight * 0.06, bodyWidth * 0.06, bodyHeight * 0.15);
+    taxiContext.fillRect(bodyWidth * 0.41, bodyHeight * 0.06, bodyWidth * 0.06, bodyHeight * 0.15);
+
+    taxiContext.fillStyle = "#ffef00";
+    taxiContext.fillRect(-bodyWidth * 0.18, -bodyHeight * 0.02, bodyWidth * 0.36, bodyHeight * 0.14);
+    taxiContext.strokeRect(-bodyWidth * 0.18, -bodyHeight * 0.02, bodyWidth * 0.36, bodyHeight * 0.14);
+
+    taxiContext.fillStyle = "#ffeaa0";
+    taxiContext.fillRect(-bodyWidth * 0.42, bodyHeight * 0.03, bodyWidth * 0.12, bodyHeight * 0.08);
+    taxiContext.fillRect(bodyWidth * 0.3, bodyHeight * 0.03, bodyWidth * 0.12, bodyHeight * 0.08);
+    taxiContext.strokeRect(-bodyWidth * 0.42, bodyHeight * 0.03, bodyWidth * 0.12, bodyHeight * 0.08);
+    taxiContext.strokeRect(bodyWidth * 0.3, bodyHeight * 0.03, bodyWidth * 0.12, bodyHeight * 0.08);
+
+    taxiContext.fillStyle = "#be1010";
+    taxiContext.fillRect(-bodyWidth * 0.48, bodyHeight * 0.2, bodyWidth * 0.96, bodyHeight * 0.12);
+    taxiContext.strokeRect(-bodyWidth * 0.48, bodyHeight * 0.2, bodyWidth * 0.96, bodyHeight * 0.12);
+
+    taxiContext.fillStyle = "#ff3b30";
+    taxiContext.fillRect(-bodyWidth * 0.37, bodyHeight * 0.23, bodyWidth * 0.09, bodyHeight * 0.07);
+    taxiContext.fillRect(bodyWidth * 0.28, bodyHeight * 0.23, bodyWidth * 0.09, bodyHeight * 0.07);
+    taxiContext.strokeRect(-bodyWidth * 0.37, bodyHeight * 0.23, bodyWidth * 0.09, bodyHeight * 0.07);
+    taxiContext.strokeRect(bodyWidth * 0.28, bodyHeight * 0.23, bodyWidth * 0.09, bodyHeight * 0.07);
+
+    taxiContext.fillStyle = "#cc2a2a";
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.58, -bodyHeight * 0.02);
+    taxiContext.lineTo(-bodyWidth * 0.48, bodyHeight * 0.16);
+    taxiContext.lineTo(-bodyWidth * 0.2, bodyHeight * 0.16);
+    taxiContext.lineTo(-bodyWidth * 0.3, -bodyHeight * 0.02);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+    taxiContext.beginPath();
+    taxiContext.moveTo(bodyWidth * 0.58, -bodyHeight * 0.02);
+    taxiContext.lineTo(bodyWidth * 0.48, bodyHeight * 0.16);
+    taxiContext.lineTo(bodyWidth * 0.2, bodyHeight * 0.16);
+    taxiContext.lineTo(bodyWidth * 0.3, -bodyHeight * 0.02);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.stroke();
+
+    taxiContext.fillStyle = "rgba(0, 0, 0, 0.24)";
+    taxiContext.fillRect(-bodyWidth * 0.44, bodyHeight * 0.32, bodyWidth * 0.88, bodyHeight * 0.07);
+
+    taxiContext.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    taxiContext.lineWidth = 2 * scale;
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.2, -bodyHeight * 0.42);
+    taxiContext.lineTo(-bodyWidth * 0.28, -bodyHeight * 0.03);
+    taxiContext.moveTo(bodyWidth * 0.2, -bodyHeight * 0.42);
+    taxiContext.lineTo(bodyWidth * 0.28, -bodyHeight * 0.03);
+    taxiContext.stroke();
+
+    taxiContext.fillStyle = darkColor;
+    taxiContext.fillRect(-bodyWidth * 0.55, bodyHeight * 0.33, bodyWidth * 0.18, bodyHeight * 0.22);
+    taxiContext.fillRect(bodyWidth * 0.37, bodyHeight * 0.33, bodyWidth * 0.18, bodyHeight * 0.22);
+
+    taxiContext.fillStyle = "rgba(255, 255, 255, 0.14)";
+    taxiContext.beginPath();
+    taxiContext.moveTo(-bodyWidth * 0.18, -bodyHeight * 0.3);
+    taxiContext.lineTo(0, -bodyHeight * 0.22);
+    taxiContext.lineTo(0, bodyHeight * 0.12);
+    taxiContext.lineTo(-bodyWidth * 0.24, bodyHeight * 0.02);
+    taxiContext.closePath();
+    taxiContext.fill();
+    taxiContext.beginPath();
+    taxiContext.moveTo(bodyWidth * 0.08, -bodyHeight * 0.28);
+    taxiContext.lineTo(bodyWidth * 0.22, -bodyHeight * 0.21);
+    taxiContext.lineTo(bodyWidth * 0.24, bodyHeight * 0.04);
+    taxiContext.lineTo(bodyWidth * 0.08, bodyHeight * 0.1);
+    taxiContext.closePath();
+    taxiContext.fill();
+
+    taxiContext.restore();
+  }
+
+  function drawRoad() {
+    taxiContext.clearRect(0, 0, taxiCanvas.width, taxiCanvas.height);
+
+    const skyGradient = taxiContext.createLinearGradient(0, 0, 0, horizonY);
+    skyGradient.addColorStop(0, "#73d1d6");
+    skyGradient.addColorStop(1, "#d6f7ff");
+    taxiContext.fillStyle = skyGradient;
+    taxiContext.fillRect(0, 0, taxiCanvas.width, horizonY);
+
+    taxiContext.fillStyle = "#7fcb5a";
+    taxiContext.fillRect(0, horizonY, taxiCanvas.width, taxiCanvas.height - horizonY);
+    taxiContext.fillStyle = "#68b74a";
+    for (let strip = 0; strip < taxiCanvas.width; strip += 18) {
+      taxiContext.fillRect(strip, horizonY + 12, 10, taxiCanvas.height - horizonY - 12);
+    }
+    taxiContext.fillStyle = "#5da341";
+    for (let strip = 8; strip < taxiCanvas.width; strip += 22) {
+      taxiContext.fillRect(strip, horizonY + 20, 6, taxiCanvas.height - horizonY - 20);
+    }
+
+    taxiContext.fillStyle = "#73bf53";
+    taxiContext.beginPath();
+    taxiContext.moveTo(0, taxiCanvas.height);
+    taxiContext.lineTo(taxiCanvas.width / 2 - roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.lineTo(taxiCanvas.width / 2 - roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(0, horizonY);
+    taxiContext.closePath();
+    taxiContext.fill();
+
+    taxiContext.beginPath();
+    taxiContext.moveTo(taxiCanvas.width, taxiCanvas.height);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width, horizonY);
+    taxiContext.closePath();
+    taxiContext.fill();
+
+    taxiContext.fillStyle = "#aeaeae";
+    taxiContext.beginPath();
+    taxiContext.moveTo(taxiCanvas.width / 2 - roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.lineTo(taxiCanvas.width / 2 - roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.closePath();
+    taxiContext.fill();
+
+    taxiContext.save();
+    taxiContext.beginPath();
+    taxiContext.moveTo(taxiCanvas.width / 2 - roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.lineTo(taxiCanvas.width / 2 - roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.closePath();
+    taxiContext.clip();
+
+
+    taxiContext.strokeStyle = "#ececec";
+    taxiContext.lineWidth = 4;
+    taxiContext.beginPath();
+    taxiContext.moveTo(taxiCanvas.width / 2 - roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width / 2 - roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.moveTo(taxiCanvas.width / 2 + roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.stroke();
+
+    taxiContext.strokeStyle = "#ffffff";
+    for (let y = horizonY + 18 - taxiState.dashOffset; y < taxiCanvas.height; y += 86) {
+      const depth = clamp((y - horizonY) / (playerBaseY - horizonY), 0, 1);
+      const nextDepth = clamp((y + 34 - horizonY) / (playerBaseY - horizonY), 0, 1);
+      const roadWidth = perspectiveWidth(depth);
+      const laneWidth = roadWidth / 3;
+      const dashWidth = lerp(3, 9, depth);
+
+      taxiContext.lineWidth = dashWidth;
+
+      for (let divider = 1; divider <= 2; divider += 1) {
+        const x1 = taxiCanvas.width / 2 - roadWidth / 2 + laneWidth * divider;
+        const nextRoadWidth = perspectiveWidth(nextDepth);
+        const nextLaneWidth = nextRoadWidth / 3;
+        const x2 = taxiCanvas.width / 2 - nextRoadWidth / 2 + nextLaneWidth * divider;
+        const nextY = y + 34;
+        taxiContext.beginPath();
+        taxiContext.moveTo(x1, y);
+        taxiContext.lineTo(x2, nextY);
+        taxiContext.stroke();
+      }
+    }
+
+    taxiContext.restore();
+
+    const startLineY = 424 + taxiState.startLineOffset;
+
+    if (startLineY < taxiCanvas.height + 50) {
+      const startLineWidth = perspectiveWidth(0.97);
+      const startLineLeft = taxiCanvas.width / 2 - startLineWidth / 2;
+      const squareSize = 20;
+
+      for (let row = 0; row < 2; row += 1) {
+        for (let column = 0; column < Math.ceil(startLineWidth / squareSize); column += 1) {
+          taxiContext.fillStyle = (row + column) % 2 === 0 ? "#ffffff" : "#111111";
+          taxiContext.fillRect(startLineLeft + column * squareSize, startLineY + row * squareSize, squareSize, squareSize);
+        }
+      }
+    }
+
+    taxiContext.strokeStyle = "#ff8e00";
+    taxiContext.lineWidth = 4;
+    taxiContext.beginPath();
+    taxiContext.moveTo(10, 180);
+    taxiContext.lineTo(10, 460);
+    taxiContext.stroke();
+    taxiContext.beginPath();
+    taxiContext.moveTo(taxiCanvas.width - 10, 180);
+    taxiContext.lineTo(taxiCanvas.width - 10, 460);
+    taxiContext.stroke();
+
+    taxiContext.fillStyle = "#ffec2f";
+    taxiContext.strokeStyle = "#0f0f0f";
+    taxiContext.lineWidth = 3;
+    taxiContext.save();
+    taxiContext.translate(taxiCanvas.width - 72, 256);
+    taxiContext.rotate(Math.PI / 4);
+    taxiContext.beginPath();
+    taxiContext.roundRect(-34, -34, 68, 68, 10);
+    taxiContext.fill();
+    taxiContext.stroke();
+    taxiContext.restore();
+    drawOutlinedText("10", taxiCanvas.width - 72, 266, 28, "center");
+  }
+
+  function drawTaxiHud() {
+    drawOutlinedText(`SCORE: ${Math.round(taxiState.score)}`, 18, 34, 22);
+    drawOutlinedText(`LEVEL: ${taxiState.level}`, 18, 142, 18);
+    drawOutlinedText(`DISTANCE LEFT: ${Math.max(0, Math.round(taxiState.distanceMeters))} M`, 18, 70, 20);
+    drawOutlinedText(`TIME LEFT: ${Math.max(0, Math.ceil(taxiState.timeLeft))} S`, 18, 106, 20);
+  }
+
+  function drawFinishLine() {
+    if (taxiState.distanceMeters > finishLineRevealDistance) {
+      return;
+    }
+
+    const progress = 1 - clamp(taxiState.distanceMeters / finishLineRevealDistance, 0, 1);
+    const depth = lerp(0.18, 0.96, progress);
+    const lineY = screenYForDepth(depth);
+    const lineHeight = lerp(6, 24, depth);
+    const lineWidth = perspectiveWidth(depth);
+    const left = taxiCanvas.width / 2 - lineWidth / 2;
+    const squareSize = Math.max(10, lineHeight);
+
+    taxiContext.save();
+    taxiContext.beginPath();
+    taxiContext.moveTo(taxiCanvas.width / 2 - roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadTopWidth / 2, horizonY);
+    taxiContext.lineTo(taxiCanvas.width / 2 + roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.lineTo(taxiCanvas.width / 2 - roadBottomWidth / 2, taxiCanvas.height);
+    taxiContext.closePath();
+    taxiContext.clip();
+
+    for (let row = 0; row < 2; row += 1) {
+      for (let column = 0; column < Math.ceil(lineWidth / squareSize); column += 1) {
+        taxiContext.fillStyle = (row + column) % 2 === 0 ? "#ffffff" : "#111111";
+        taxiContext.fillRect(left + column * squareSize, lineY + row * lineHeight, squareSize, lineHeight);
+      }
+    }
+
+    taxiContext.restore();
+  }
+
+  function drawTaxiScene() {
+    drawRoad();
+
+    taxiState.roadsideItems
+      .slice()
+      .sort((first, second) => first.depth - second.depth)
+      .forEach((item) => drawRoadsideItem(item));
+
+    drawFinishLine();
+
+    taxiState.traffic
+      .slice()
+      .sort((first, second) => first.depth - second.depth)
+      .forEach((car) => {
+        const depth = clamp(car.depth, 0.02, 0.98);
+        const y = screenYForDepth(depth);
+        const scale = lerp(0.22, 0.9, depth);
+        const x = laneCenterAtDepth(car.lane, depth);
+        drawPerspectiveCar(x, y, scale, car.color, false, false, 0, car.roofSign);
+      });
+
+    const playerX = laneCenterAtDepth(taxiState.player.laneVisual, 0.97);
+    drawPerspectiveCar(
+      playerX,
+      playerBaseY + taxiState.player.knockback,
+      1,
+      isTaxiCrashed() ? "#ff6f87" : "#ef2b1b",
+      true,
+      isTaxiCrashed(),
+      taxiState.player.jumpOffset,
+      true
+    );
+    drawTaxiHud();
+  }
+
+  function taxiLoop(timestamp) {
+    if (!taxiState.lastTime) {
+      taxiState.lastTime = timestamp;
+    }
+
+    const deltaTime = Math.min(0.033, (timestamp - taxiState.lastTime) / 1000);
+    taxiState.lastTime = timestamp;
+
+    updateTaxiGame(deltaTime);
+    drawTaxiScene();
+    requestAnimationFrame(taxiLoop);
+  }
+
+  function handleTaxiKeyDown(event) {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"].includes(event.code)) {
+      if (event.code === "Escape" && !taxiMenu.hidden) {
+        event.preventDefault();
+        closeTaxiMenu();
+      }
+
+      return;
+    }
+
+    event.preventDefault();
+
+    if (taxiState.paused) {
+      return;
+    }
+
+    if (event.code === "ArrowUp") {
+      taxiKeys.ArrowUp = true;
+      return;
+    }
+
+    if (event.code === "ArrowDown") {
+      taxiKeys.ArrowDown = true;
+      return;
+    }
+
+    if (taxiState.timeLeft <= 0 || taxiState.distanceMeters <= 0 || event.repeat) {
+      return;
+    }
+
+    if (event.code === "ArrowLeft") {
+      taxiState.player.lane = Math.max(0, taxiState.player.lane - 1);
+      return;
+    }
+
+    if (event.code === "ArrowRight") {
+      taxiState.player.lane = Math.min(2, taxiState.player.lane + 1);
+      return;
+    }
+
+    if (event.code === "Space") {
+      if (taxiState.player.jumping) {
+        return;
+      }
+
+      if (taxiState.player.speed < jumpSpeedThreshold) {
+        setTaxiMessage("Need at least 70 mph before the taxi can jump.", 1.1);
+        return;
+      }
+
+      taxiState.player.jumping = true;
+      taxiState.player.jumpVelocity = 680;
+      setTaxiMessage("Jump! Clear the taxi ahead.", 0.8);
+    }
+  }
+
+  function handleTaxiKeyUp(event) {
+    if (taxiState.paused) {
+      return;
+    }
+
+    if (event.code === "ArrowUp") {
+      taxiKeys.ArrowUp = false;
+      return;
+    }
+
+    if (event.code === "ArrowDown") {
+      taxiKeys.ArrowDown = false;
+    }
+  }
+
+  document.addEventListener("keydown", handleTaxiKeyDown);
+  document.addEventListener("keyup", handleTaxiKeyUp);
+  taxiResetBtn.addEventListener("click", resetTaxiGame);
+  taxiMenuBtn.addEventListener("click", openTaxiMenu);
+  taxiResumeBtn.addEventListener("click", closeTaxiMenu);
+  taxiCloseMenuBtn.addEventListener("click", closeTaxiMenu);
+  taxiMenu.addEventListener("click", (event) => {
+    if (event.target === taxiMenu) {
+      closeTaxiMenu();
+    }
+  });
+
+  resetTaxiGame();
+  requestAnimationFrame(taxiLoop);
+}

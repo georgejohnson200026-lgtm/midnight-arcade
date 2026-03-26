@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login | Midnight Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bungee:wght@400&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" data-page="login">
+    <div class="orb orb-left" aria-hidden="true"></div>
+    <div class="orb orb-right" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="sidebar-mark">MA</span>
+          <div>
+            <p class="sidebar-title">Midnight Arcade</p>
+            <p class="sidebar-subtitle">Account</p>
+          </div>
+        </div>
+
+        <label class="sidebar-search" for="sidebar-search-input">
+          <span>Search</span>
+          <input id="sidebar-search-input" type="search" placeholder="Search games" />
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Homepage navigation">
+          <a class="sidebar-link" href="index.html">Home</a>
+          <a class="sidebar-link active" href="login.html">Login</a>
+          <a class="sidebar-link" href="hangman.html">Favorite Games</a>
+          <a class="sidebar-link" href="crazy-taxi.html">Skilled Games</a>
+          <a class="sidebar-link" href="tic-tac-toe.html">Multiplayer</a>
+        </nav>
+
+        <button class="sidebar-settings" type="button">Settings</button>
+      </aside>
+
+      <div class="page-content">
+        <header class="hero page-hero">
+          <p class="eyebrow">Optional Account</p>
+          <h1>Login</h1>
+          <p class="subtitle">You do not need to log in to browse or play. Login only sets your multiplayer display name.</p>
+          <a class="back-link" href="index.html">Back to homepage</a>
+        </header>
+
+        <main class="games-grid single-game-grid">
+          <section class="game-card login-card">
+            <h2>Set Player Identity</h2>
+            <p class="game-description">Username and password are saved only in this browser for your local session identity.</p>
+            <form id="login-form" class="login-form" autocomplete="off">
+              <label for="login-username">Username</label>
+              <input id="login-username" type="text" minlength="3" maxlength="24" required placeholder="Player name" />
+              <label for="login-password">Password</label>
+              <input id="login-password" type="password" minlength="4" maxlength="40" required placeholder="Password" />
+              <div class="login-actions">
+                <button type="submit">Save Login</button>
+                <button id="logout-btn" class="ghost-btn" type="button">Clear Login</button>
+              </div>
+            </form>
+            <p id="login-status" class="status-text">Not logged in.</p>
+          </section>
+        </main>
+
+        <footer class="site-footer">
+          <p>Midnight Arcade • Dark mode by default</p>
+        </footer>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+      (function () {
+        const loginForm = document.getElementById("login-form");
+        const usernameInput = document.getElementById("login-username");
+        const passwordInput = document.getElementById("login-password");
+        const loginStatus = document.getElementById("login-status");
+        const logoutBtn = document.getElementById("logout-btn");
+
+        function readLogin() {
+          try {
+            return JSON.parse(localStorage.getItem("ma-auth") || "null");
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function showStatus() {
+          const auth = readLogin();
+          if (!auth || !auth.username) {
+            loginStatus.textContent = "Not logged in.";
+            loginStatus.className = "status-text";
+            return;
+          }
+
+          loginStatus.textContent = `Logged in as ${auth.username}.`;
+          loginStatus.className = "status-text win";
+          usernameInput.value = auth.username;
+        }
+
+        loginForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const username = usernameInput.value.trim();
+          const password = passwordInput.value;
+
+          if (!username || !password) {
+            loginStatus.textContent = "Username and password are required.";
+            loginStatus.className = "status-text lose";
+            return;
+          }
+
+          localStorage.setItem(
+            "ma-auth",
+            JSON.stringify({
+              username,
+              password,
+              updatedAt: Date.now(),
+            })
+          );
+
+          passwordInput.value = "";
+          showStatus();
+        });
+
+        logoutBtn.addEventListener("click", () => {
+          localStorage.removeItem("ma-auth");
+          passwordInput.value = "";
+          loginStatus.textContent = "Login cleared.";
+          loginStatus.className = "status-text";
+        });
+
+        showStatus();
+      })();
+    </script>
+  </body>
+</html>

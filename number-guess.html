@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Number Guess | Midnight Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bungee:wght@400&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" data-page="number-guess">
+    <div class="orb orb-left" aria-hidden="true"></div>
+    <div class="orb orb-right" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="sidebar-mark">MA</span>
+          <div>
+            <p class="sidebar-title">Midnight Arcade</p>
+            <p class="sidebar-subtitle">Game Room</p>
+          </div>
+        </div>
+
+        <label class="sidebar-search" for="sidebar-search-input">
+          <span>Search</span>
+          <input id="sidebar-search-input" type="search" placeholder="Search games" />
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Homepage navigation">
+          <a class="sidebar-link" href="index.html">Home</a>
+          <a class="sidebar-link" href="login.html">Login</a>
+          <a class="sidebar-link" href="hangman.html">Favorite Games</a>
+          <a class="sidebar-link" href="crazy-taxi.html">Skilled Games</a>
+          <a class="sidebar-link" href="tic-tac-toe.html">Multiplayer</a>
+        </nav>
+
+        <button class="sidebar-settings" type="button">Settings</button>
+      </aside>
+
+      <div class="page-content">
+        <header class="hero page-hero">
+          <p class="eyebrow">Classic Game</p>
+          <h1>Number Guess</h1>
+          <p class="subtitle">Try to crack the secret number in as few attempts as possible.</p>
+          <a class="back-link" href="index.html">Back to homepage</a>
+        </header>
+
+        <main class="games-grid single-game-grid">
+          <section class="game-card" id="guess-game">
+            <h2>Number Guess</h2>
+            <p class="game-description">Guess the secret number between 1 and 100.</p>
+            <div class="guess-controls">
+              <input id="guess-input" type="number" min="1" max="100" placeholder="Enter number" />
+              <button id="guess-btn">Guess</button>
+              <button id="reset-guess-btn" class="ghost-btn">New Round</button>
+            </div>
+            <p id="guess-feedback" class="status-text">Start guessing.</p>
+            <p id="guess-attempts" class="meta-text">Attempts: 0</p>
+          </section>
+        </main>
+
+        <footer class="site-footer">
+          <p>Midnight Arcade • Dark mode by default</p>
+        </footer>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tic-Tac-Toe | Midnight Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bungee:wght@400&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" data-page="tic-tac-toe">
+    <div class="orb orb-left" aria-hidden="true"></div>
+    <div class="orb orb-right" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="sidebar-mark">MA</span>
+          <div>
+            <p class="sidebar-title">Midnight Arcade</p>
+            <p class="sidebar-subtitle">Game Room</p>
+          </div>
+        </div>
+
+        <label class="sidebar-search" for="sidebar-search-input">
+          <span>Search</span>
+          <input id="sidebar-search-input" type="search" placeholder="Search games" />
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Homepage navigation">
+          <a class="sidebar-link" href="index.html">Home</a>
+          <a class="sidebar-link" href="login.html">Login</a>
+          <a class="sidebar-link" href="hangman.html">Favorite Games</a>
+          <a class="sidebar-link" href="crazy-taxi.html">Skilled Games</a>
+          <a class="sidebar-link active" href="tic-tac-toe.html">Multiplayer</a>
+        </nav>
+
+        <button class="sidebar-settings" type="button">Settings</button>
+      </aside>
+
+      <div class="page-content">
+        <header class="hero page-hero">
+          <p class="eyebrow">Multiplayer</p>
+          <h1>Tic-Tac-Toe</h1>
+          <p class="subtitle">Pass the screen and battle for three in a row.</p>
+          <a class="back-link" href="index.html">Back to homepage</a>
+        </header>
+
+        <main class="games-grid single-game-grid">
+          <section class="game-card multiplayer-card">
+            <h2>Multiplayer Room</h2>
+            <p class="game-description">Create a room invite for Tic-Tac-Toe or accept one. The first match starts only when the host starts it.</p>
+            <p id="mp-room-meta" class="meta-text">No multiplayer room yet.</p>
+            <p id="mp-room-status" class="status-text">Create an invite link for the game you want to play.</p>
+            <div class="mp-room-actions">
+              <button id="mp-create-invite-btn" type="button">Create Invite Link</button>
+              <button id="mp-copy-invite-btn" class="ghost-btn" type="button">Copy Link</button>
+              <button id="mp-accept-invite-btn" class="ghost-btn" type="button">Accept Invite</button>
+            </div>
+            <input id="mp-invite-link" type="text" readonly placeholder="Invite link appears here" />
+            <div class="mp-switch-links">
+              <a data-room-switch="tic-tac-toe.html" href="tic-tac-toe.html">Stay in Tic-Tac-Toe</a>
+              <a data-room-switch="hangman.html" href="hangman.html">Switch room to Hangman</a>
+            </div>
+          </section>
+
+          <section class="game-card multiplayer-card" id="mp-tic-wrap">
+            <h2>Tic-Tac-Toe Multiplayer</h2>
+            <p id="mp-tic-status" class="status-text">Accept invite to join this multiplayer room.</p>
+            <div class="mp-room-actions">
+              <button id="mp-tic-start-btn" type="button">Start First Game</button>
+            </div>
+            <div class="tic-board" id="mp-tic-board" role="grid" aria-label="Multiplayer tic tac toe board">
+              <button data-index="0" aria-label="Cell 1"></button>
+              <button data-index="1" aria-label="Cell 2"></button>
+              <button data-index="2" aria-label="Cell 3"></button>
+              <button data-index="3" aria-label="Cell 4"></button>
+              <button data-index="4" aria-label="Cell 5"></button>
+              <button data-index="5" aria-label="Cell 6"></button>
+              <button data-index="6" aria-label="Cell 7"></button>
+              <button data-index="7" aria-label="Cell 8"></button>
+              <button data-index="8" aria-label="Cell 9"></button>
+            </div>
+          </section>
+
+          <section class="game-card" id="tic-game">
+            <h2>Tic-Tac-Toe</h2>
+            <p class="game-description">Play X against O. Grab three in a row.</p>
+            <div class="tic-board" id="tic-board" role="grid" aria-label="Tic tac toe board">
+              <button class="tic-cell" data-index="0" aria-label="Cell 1"></button>
+              <button class="tic-cell" data-index="1" aria-label="Cell 2"></button>
+              <button class="tic-cell" data-index="2" aria-label="Cell 3"></button>
+              <button class="tic-cell" data-index="3" aria-label="Cell 4"></button>
+              <button class="tic-cell" data-index="4" aria-label="Cell 5"></button>
+              <button class="tic-cell" data-index="5" aria-label="Cell 6"></button>
+              <button class="tic-cell" data-index="6" aria-label="Cell 7"></button>
+              <button class="tic-cell" data-index="7" aria-label="Cell 8"></button>
+              <button class="tic-cell" data-index="8" aria-label="Cell 9"></button>
+            </div>
+            <div class="tic-footer">
+              <p id="tic-feedback" class="status-text">X starts.</p>
+              <button id="reset-tic-btn" class="ghost-btn">Reset Board</button>
+            </div>
+          </section>
+
+          <section class="game-card multiplayer-card">
+            <h2>Room Chat Log</h2>
+            <p class="game-description">This chat history follows you between multiplayer games in the same room. It clears after both players leave.</p>
+            <div id="mp-chat-log" class="mp-chat-log" aria-live="polite"></div>
+            <div class="mp-chat-actions">
+              <input id="mp-chat-input" type="text" maxlength="220" placeholder="Type a message" />
+              <button id="mp-chat-send-btn" type="button">Send</button>
+            </div>
+          </section>
+        </main>
+
+        <footer class="site-footer">
+          <p>Midnight Arcade • Dark mode by default</p>
+        </footer>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="multiplayer.js"></script>
+  </body>
+</html>
