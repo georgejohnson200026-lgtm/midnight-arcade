@@ -84,12 +84,12 @@
         </header>
 
         <main class="games-grid single-game-grid">
-          <section class="game-card login-card">
+          <section id="sign-in-panel" class="game-card login-card">
             <h2>Sign In</h2>
-            <p class="game-description">Use your email and password. You can still play without an account.</p>
+            <p class="game-description">Sign in with username and password, or email and password. You can still play without an account.</p>
             <form id="login-form" class="login-form" autocomplete="off">
-              <label for="login-email">Email</label>
-              <input id="login-email" type="email" required placeholder="you@example.com" />
+              <label for="login-identifier">Username or Email</label>
+              <input id="login-identifier" type="text" required placeholder="username or you@example.com" />
               <label for="login-password">Password</label>
               <input id="login-password" type="password" minlength="6" maxlength="64" required placeholder="Password" />
               <div class="login-actions">
@@ -98,10 +98,13 @@
               </div>
             </form>
             <p id="login-status" class="status-text">Not signed in.</p>
-            <p class="meta-text"><a id="forgot-password-link" href="#forgot-password-card">Forgot password?</a></p>
+            <div class="login-actions">
+              <button id="go-create-account" class="ghost-btn" type="button">Create a New Account</button>
+              <button id="go-forgot-password" class="ghost-btn" type="button">Forgot Password</button>
+            </div>
           </section>
 
-          <section class="game-card login-card">
+          <section id="create-panel" class="game-card login-card hidden">
             <h2>Create New Account</h2>
             <p class="game-description">Create an account, enter your email, then verify using the code or link sent to that email.</p>
             <form id="create-account-form" class="login-form" autocomplete="off">
@@ -115,13 +118,14 @@
               <input id="create-password-confirm" type="password" minlength="6" maxlength="64" required placeholder="Re-enter password" />
               <div class="login-actions">
                 <button type="submit">Create Account</button>
+                <button id="back-to-sign-in-from-create" class="ghost-btn" type="button">Back to Sign In</button>
               </div>
             </form>
             <p id="create-account-status" class="status-text">No account created yet.</p>
             <p id="create-account-link" class="meta-text"></p>
           </section>
 
-          <section class="game-card login-card">
+          <section id="verify-panel" class="game-card login-card hidden">
             <h2>Verify Email Code</h2>
             <p class="game-description">Paste the verification code you received by email and activate your account.</p>
             <form id="verify-account-form" class="login-form" autocomplete="off">
@@ -131,12 +135,13 @@
               <input id="verify-code" type="text" minlength="6" maxlength="6" required placeholder="6-digit code" />
               <div class="login-actions">
                 <button type="submit">Verify Account</button>
+                <button id="back-to-sign-in-from-verify" class="ghost-btn" type="button">Back to Sign In</button>
               </div>
             </form>
             <p id="verify-account-status" class="status-text">Waiting for code.</p>
           </section>
 
-          <section class="game-card login-card" id="forgot-password-card">
+          <section id="forgot-panel" class="game-card login-card hidden">
             <h2>Forgot Password</h2>
             <p class="game-description">Request a reset link/code by email, then set a new password.</p>
             <form id="forgot-password-request-form" class="login-form" autocomplete="off">
@@ -144,6 +149,7 @@
               <input id="forgot-email" type="email" required placeholder="you@example.com" />
               <div class="login-actions">
                 <button type="submit">Send Reset Link</button>
+                <button id="back-to-sign-in-from-forgot" class="ghost-btn" type="button">Back to Sign In</button>
               </div>
             </form>
             <form id="forgot-password-reset-form" class="login-form" autocomplete="off">

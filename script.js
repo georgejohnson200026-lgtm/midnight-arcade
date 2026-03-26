@@ -1567,6 +1567,7 @@ if (taxiCanvas) {
 
 // ── Account Storage Helpers ────────────────────────────────────────────
 const ACCOUNTS_KEY = "ma-accounts-v1";
+const PENDING_SIGNUPS_KEY = "ma-pending-signups-v1";
 const SESSION_KEY = "user-login";
 const MP_AUTH_KEY = "ma-auth";
 
@@ -1608,6 +1609,14 @@ function readAccounts() {
 
 function saveAccounts(accounts) {
   writeJsonStorage(ACCOUNTS_KEY, accounts);
+}
+
+function readPendingSignups() {
+  return readJsonStorage(PENDING_SIGNUPS_KEY, {});
+}
+
+function savePendingSignups(pending) {
+  writeJsonStorage(PENDING_SIGNUPS_KEY, pending);
 }
 
 function readSession() {
@@ -1730,8 +1739,18 @@ function clearSession() {
   const page = document.body ? document.body.dataset.page : "";
   if (page !== "login") return;
 
+  const signInPanel = document.getElementById("sign-in-panel");
+  const createPanel = document.getElementById("create-panel");
+  const verifyPanel = document.getElementById("verify-panel");
+  const forgotPanel = document.getElementById("forgot-panel");
+  const goCreateBtn = document.getElementById("go-create-account");
+  const goForgotBtn = document.getElementById("go-forgot-password");
+  const backFromCreateBtn = document.getElementById("back-to-sign-in-from-create");
+  const backFromVerifyBtn = document.getElementById("back-to-sign-in-from-verify");
+  const backFromForgotBtn = document.getElementById("back-to-sign-in-from-forgot");
+
   const loginForm = document.getElementById("login-form");
-  const loginEmail = document.getElementById("login-email");
+  const loginIdentifier = document.getElementById("login-identifier");
   const loginPassword = document.getElementById("login-password");
   const loginStatus = document.getElementById("login-status");
   const logoutBtn = document.getElementById("logout-btn");
@@ -1765,16 +1784,39 @@ function clearSession() {
     node.className = `status-text ${cssClass || ""}`.trim();
   }
 
+  function showPanel(panelName) {
+    if (signInPanel) signInPanel.classList.toggle("hidden", panelName !== "sign-in");
+    if (createPanel) createPanel.classList.toggle("hidden", panelName !== "create");
+    if (verifyPanel) verifyPanel.classList.toggle("hidden", panelName !== "verify");
+    if (forgotPanel) forgotPanel.classList.toggle("hidden", panelName !== "forgot");
+  }
+
   function updateLoginStatus() {
     const session = readSession();
     if (!session) {
       setStatus(loginStatus, "Not signed in.", "");
       return;
     }
-    if (loginEmail) {
-      loginEmail.value = session.email || "";
+    if (loginIdentifier) {
+      loginIdentifier.value = session.email || session.username || "";
     }
     setStatus(loginStatus, `Signed in as ${session.username}.`, "win");
+  }
+
+  if (goCreateBtn) {
+    goCreateBtn.addEventListener("click", () => showPanel("create"));
+  }
+  if (goForgotBtn) {
+    goForgotBtn.addEventListener("click", () => showPanel("forgot"));
+  }
+  if (backFromCreateBtn) {
+    backFromCreateBtn.addEventListener("click", () => showPanel("sign-in"));
+  }
+  if (backFromVerifyBtn) {
+    backFromVerifyBtn.addEventListener("click", () => showPanel("sign-in"));
+  }
+  if (backFromForgotBtn) {
+    backFromForgotBtn.addEventListener("click", () => showPanel("sign-in"));
   }
 
   if (createForm) {
@@ -1811,26 +1853,27 @@ function clearSession() {
 
       const verificationCode = generateCode();
       const verificationToken = generateToken();
-      accounts[email] = {
+      const pending = readPendingSignups();
+      pending[email] = {
         username,
         email,
         password: btoa(password),
-        verified: false,
         verificationCode,
         verificationToken,
         createdAt: Date.now(),
       };
-      saveAccounts(accounts);
+      savePendingSignups(pending);
 
       const verifyUrl = `${window.location.origin}${window.location.pathname}?verifyEmail=${encodeURIComponent(email)}&verifyCode=${verificationCode}`;
       const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent("Midnight Arcade verification")}&body=${encodeURIComponent(`Use this verification code: ${verificationCode}\nOr open this link: ${verifyUrl}`)}`;
 
-      setStatus(createStatus, "Account created. Check your email for a verification code/link.", "win");
+      setStatus(createStatus, "Verification code sent. Enter it to activate your account.", "win");
       if (createLink) {
         createLink.innerHTML = `Email send preview (static-site mode): <a href="${mailtoUrl}">Open email app</a> | <a href="${verifyUrl}">Verification link</a> | Code: <strong>${verificationCode}</strong>`;
       }
       verifyEmail.value = email;
       verifyCode.value = verificationCode;
+      showPanel("verify");
     });
   }
 
@@ -1840,40 +1883,46 @@ function clearSession() {
       const email = normalizeEmail(verifyEmail.value);
       const code = String(verifyCode.value || "").trim();
 
-      const accounts = readAccounts();
-      const account = accounts[email];
-      if (!account) {
-        setStatus(verifyStatus, "No account found for this email.", "lose");
+      const pending = readPendingSignups();
+      const signup = pending[email];
+      if (!signup) {
+        setStatus(verifyStatus, "No pending signup found for this email.", "lose");
         return;
       }
-      if (account.verified) {
-        setStatus(verifyStatus, "Account is already verified.", "win");
-        return;
-      }
-      if (account.verificationCode !== code) {
+      if (signup.verificationCode !== code) {
         setStatus(verifyStatus, "Invalid verification code.", "lose");
         return;
       }
 
-      account.verified = true;
-      delete account.verificationCode;
-      delete account.verificationToken;
+      const accounts = readAccounts();
+      const account = {
+        username: signup.username,
+        email: signup.email,
+        password: signup.password,
+        verified: true,
+        createdAt: signup.createdAt || Date.now(),
+      };
       accounts[email] = account;
       saveAccounts(accounts);
-      setStatus(verifyStatus, "Email verified. You can now sign in.", "win");
+      delete pending[email];
+      savePendingSignups(pending);
+      setStatus(verifyStatus, "Email verified and account activated. You can now sign in.", "win");
+      showPanel("sign-in");
     });
   }
 
   if (loginForm) {
     loginForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      const email = normalizeEmail(loginEmail.value);
+      const identifier = String(loginIdentifier.value || "").trim();
       const password = loginPassword.value;
       const accounts = readAccounts();
-      const account = accounts[email];
+      const byEmail = accounts[normalizeEmail(identifier)];
+      const byUsername = Object.values(accounts).find((entry) => String(entry.username || "").toLowerCase() === identifier.toLowerCase());
+      const account = byEmail || byUsername;
 
       if (!account) {
-        setStatus(loginStatus, "No account found for this email.", "lose");
+        setStatus(loginStatus, "No account found for this username or email.", "lose");
         return;
       }
       if (!account.verified) {
@@ -1978,6 +2027,7 @@ function clearSession() {
     verifyEmail.value = verifyEmailParam;
     verifyCode.value = verifyCodeParam;
     setStatus(verifyStatus, "Verification link detected. Click Verify Account.", "");
+    showPanel("verify");
   }
 
   const resetEmailParam = normalizeEmail(urlParams.get("resetEmail"));
@@ -1986,6 +2036,11 @@ function clearSession() {
     resetEmail.value = resetEmailParam;
     resetCode.value = resetCodeParam;
     setStatus(forgotStatus, "Reset link detected. Enter your new password and submit.", "");
+    showPanel("forgot");
+  }
+
+  if (!verifyEmailParam && !resetEmailParam) {
+    showPanel("sign-in");
   }
 
   updateLoginStatus();
