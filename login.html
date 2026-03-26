@@ -26,6 +26,15 @@
           </div>
         </div>
 
+        <div class="sidebar-account">
+          <p class="account-label">Account</p>
+          <button id="sidebar-login-btn" class="sidebar-account-btn" type="button">Login</button>
+          <div id="sidebar-user-info" class="sidebar-user-info hidden">
+            <p id="sidebar-username" class="sidebar-username">User</p>
+            <button id="sidebar-logout-btn" class="sidebar-account-btn ghost-btn" type="button">Logout</button>
+          </div>
+        </div>
+
         <label class="sidebar-search" for="sidebar-search-input">
           <span>Search</span>
           <input id="sidebar-search-input" type="search" placeholder="Search games" />
@@ -33,38 +42,125 @@
 
         <nav class="sidebar-nav" aria-label="Homepage navigation">
           <a class="sidebar-link" href="index.html">Home</a>
-          <a class="sidebar-link active" href="login.html">Login</a>
+          <a class="sidebar-link active" href="login.html">Account</a>
           <a class="sidebar-link" href="hangman.html">Favorite Games</a>
           <a class="sidebar-link" href="crazy-taxi.html">Skilled Games</a>
           <a class="sidebar-link" href="tic-tac-toe.html">Multiplayer</a>
         </nav>
 
         <button class="sidebar-settings" type="button">Settings</button>
+        <div id="settings-panel" class="settings-panel hidden">
+          <div class="settings-content">
+            <div class="settings-header">
+              <h2>Settings</h2>
+              <button id="settings-close" class="settings-close" type="button">X</button>
+            </div>
+            <div class="settings-body">
+              <div class="settings-group">
+                <label class="settings-item">
+                  <span>Light Mode</span>
+                  <input id="light-mode-toggle" type="checkbox" />
+                </label>
+              </div>
+              <div class="settings-group">
+                <p class="settings-label">Game Volume</p>
+                <label class="settings-item">
+                  <span>Master Volume</span>
+                  <input id="volume-slider" type="range" min="0" max="100" value="70" />
+                </label>
+                <p id="volume-display" class="volume-display">70%</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </aside>
 
       <div class="page-content">
         <header class="hero page-hero">
           <p class="eyebrow">Optional Account</p>
-          <h1>Login</h1>
-          <p class="subtitle">You do not need to log in to browse or play. Login only sets your multiplayer display name.</p>
+          <h1>Account Center</h1>
+          <p class="subtitle">Create a new account with email verification, sign in, or reset a forgotten password.</p>
           <a class="back-link" href="index.html">Back to homepage</a>
         </header>
 
         <main class="games-grid single-game-grid">
           <section class="game-card login-card">
-            <h2>Set Player Identity</h2>
-            <p class="game-description">Username and password are saved only in this browser for your local session identity.</p>
+            <h2>Sign In</h2>
+            <p class="game-description">Use your email and password. You can still play without an account.</p>
             <form id="login-form" class="login-form" autocomplete="off">
-              <label for="login-username">Username</label>
-              <input id="login-username" type="text" minlength="3" maxlength="24" required placeholder="Player name" />
+              <label for="login-email">Email</label>
+              <input id="login-email" type="email" required placeholder="you@example.com" />
               <label for="login-password">Password</label>
-              <input id="login-password" type="password" minlength="4" maxlength="40" required placeholder="Password" />
+              <input id="login-password" type="password" minlength="6" maxlength="64" required placeholder="Password" />
               <div class="login-actions">
-                <button type="submit">Save Login</button>
-                <button id="logout-btn" class="ghost-btn" type="button">Clear Login</button>
+                <button type="submit">Sign In</button>
+                <button id="logout-btn" class="ghost-btn" type="button">Log Out</button>
               </div>
             </form>
-            <p id="login-status" class="status-text">Not logged in.</p>
+            <p id="login-status" class="status-text">Not signed in.</p>
+            <p class="meta-text"><a id="forgot-password-link" href="#forgot-password-card">Forgot password?</a></p>
+          </section>
+
+          <section class="game-card login-card">
+            <h2>Create New Account</h2>
+            <p class="game-description">Create an account, enter your email, then verify using the code or link sent to that email.</p>
+            <form id="create-account-form" class="login-form" autocomplete="off">
+              <label for="create-username">Username</label>
+              <input id="create-username" type="text" minlength="3" maxlength="24" required placeholder="Player name" />
+              <label for="create-email">Email</label>
+              <input id="create-email" type="email" required placeholder="you@example.com" />
+              <label for="create-password">Password</label>
+              <input id="create-password" type="password" minlength="6" maxlength="64" required placeholder="At least 6 characters" />
+              <label for="create-password-confirm">Confirm Password</label>
+              <input id="create-password-confirm" type="password" minlength="6" maxlength="64" required placeholder="Re-enter password" />
+              <div class="login-actions">
+                <button type="submit">Create Account</button>
+              </div>
+            </form>
+            <p id="create-account-status" class="status-text">No account created yet.</p>
+            <p id="create-account-link" class="meta-text"></p>
+          </section>
+
+          <section class="game-card login-card">
+            <h2>Verify Email Code</h2>
+            <p class="game-description">Paste the verification code you received by email and activate your account.</p>
+            <form id="verify-account-form" class="login-form" autocomplete="off">
+              <label for="verify-email">Email</label>
+              <input id="verify-email" type="email" required placeholder="you@example.com" />
+              <label for="verify-code">Verification Code</label>
+              <input id="verify-code" type="text" minlength="6" maxlength="6" required placeholder="6-digit code" />
+              <div class="login-actions">
+                <button type="submit">Verify Account</button>
+              </div>
+            </form>
+            <p id="verify-account-status" class="status-text">Waiting for code.</p>
+          </section>
+
+          <section class="game-card login-card" id="forgot-password-card">
+            <h2>Forgot Password</h2>
+            <p class="game-description">Request a reset link/code by email, then set a new password.</p>
+            <form id="forgot-password-request-form" class="login-form" autocomplete="off">
+              <label for="forgot-email">Email</label>
+              <input id="forgot-email" type="email" required placeholder="you@example.com" />
+              <div class="login-actions">
+                <button type="submit">Send Reset Link</button>
+              </div>
+            </form>
+            <form id="forgot-password-reset-form" class="login-form" autocomplete="off">
+              <label for="reset-email">Email</label>
+              <input id="reset-email" type="email" required placeholder="you@example.com" />
+              <label for="reset-code">Reset Code</label>
+              <input id="reset-code" type="text" minlength="6" maxlength="6" required placeholder="6-digit code" />
+              <label for="reset-password">New Password</label>
+              <input id="reset-password" type="password" minlength="6" maxlength="64" required placeholder="New password" />
+              <label for="reset-password-confirm">Confirm New Password</label>
+              <input id="reset-password-confirm" type="password" minlength="6" maxlength="64" required placeholder="Confirm new password" />
+              <div class="login-actions">
+                <button type="submit">Reset Password</button>
+              </div>
+            </form>
+            <p id="forgot-password-status" class="status-text">No reset requested.</p>
+            <p id="forgot-password-link-preview" class="meta-text"></p>
           </section>
         </main>
 
@@ -75,68 +171,5 @@
     </div>
 
     <script src="script.js"></script>
-    <script>
-      (function () {
-        const loginForm = document.getElementById("login-form");
-        const usernameInput = document.getElementById("login-username");
-        const passwordInput = document.getElementById("login-password");
-        const loginStatus = document.getElementById("login-status");
-        const logoutBtn = document.getElementById("logout-btn");
-
-        function readLogin() {
-          try {
-            return JSON.parse(localStorage.getItem("ma-auth") || "null");
-          } catch (error) {
-            return null;
-          }
-        }
-
-        function showStatus() {
-          const auth = readLogin();
-          if (!auth || !auth.username) {
-            loginStatus.textContent = "Not logged in.";
-            loginStatus.className = "status-text";
-            return;
-          }
-
-          loginStatus.textContent = `Logged in as ${auth.username}.`;
-          loginStatus.className = "status-text win";
-          usernameInput.value = auth.username;
-        }
-
-        loginForm.addEventListener("submit", (event) => {
-          event.preventDefault();
-          const username = usernameInput.value.trim();
-          const password = passwordInput.value;
-
-          if (!username || !password) {
-            loginStatus.textContent = "Username and password are required.";
-            loginStatus.className = "status-text lose";
-            return;
-          }
-
-          localStorage.setItem(
-            "ma-auth",
-            JSON.stringify({
-              username,
-              password,
-              updatedAt: Date.now(),
-            })
-          );
-
-          passwordInput.value = "";
-          showStatus();
-        });
-
-        logoutBtn.addEventListener("click", () => {
-          localStorage.removeItem("ma-auth");
-          passwordInput.value = "";
-          loginStatus.textContent = "Login cleared.";
-          loginStatus.className = "status-text";
-        });
-
-        showStatus();
-      })();
-    </script>
   </body>
 </html>

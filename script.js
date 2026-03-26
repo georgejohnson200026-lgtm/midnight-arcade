@@ -1565,90 +1565,75 @@ if (taxiCanvas) {
   }
 })();
 
-// ── Multiplayer Account Management ────────────────────────────────────
-(function initMultiplayerAccount() {
-  const AUTH_KEY = "ma-auth";
-  const nameDisplay = document.getElementById("account-display-name");
-  const changeNameBtn = document.getElementById("account-change-name-btn");
-  const createAccountBtn = document.getElementById("account-create-btn");
+// ── Account Storage Helpers ────────────────────────────────────────────
+const ACCOUNTS_KEY = "ma-accounts-v1";
+const SESSION_KEY = "user-login";
+const MP_AUTH_KEY = "ma-auth";
 
-  if (!nameDisplay || !changeNameBtn || !createAccountBtn) return;
-
-  function readAuth() {
-    try { return JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); } catch (e) { return null; }
+function readJsonStorage(key, fallbackValue) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallbackValue;
+  } catch (error) {
+    return fallbackValue;
   }
+}
 
-  function saveAuth(auth) {
-    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
-  }
+function writeJsonStorage(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
 
-  function updateDisplay() {
-    const auth = readAuth();
-    const name = (auth && auth.username) ? auth.username : "Guest";
-    nameDisplay.textContent = name;
-    createAccountBtn.textContent = (auth && auth.username) ? "Change Password" : "Create Account";
-  }
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
 
-  changeNameBtn.addEventListener("click", () => {
-    const newName = prompt("Enter your new multiplayer name (letters and numbers only):", nameDisplay.textContent);
-    if (!newName || !newName.trim()) return;
-    
-    const cleanName = newName.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 20);
-    if (!cleanName) {
-      alert("Name must contain at least one letter or number.");
-      return;
-    }
+function cleanUsername(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 24);
+}
 
-    const auth = readAuth() || {};
-    auth.username = cleanName;
-    saveAuth(auth);
-    updateDisplay();
+function generateCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function generateToken() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function readAccounts() {
+  return readJsonStorage(ACCOUNTS_KEY, {});
+}
+
+function saveAccounts(accounts) {
+  writeJsonStorage(ACCOUNTS_KEY, accounts);
+}
+
+function readSession() {
+  return readJsonStorage(SESSION_KEY, null);
+}
+
+function setSession(account) {
+  writeJsonStorage(SESSION_KEY, {
+    email: account.email,
+    username: account.username,
+    loggedAt: Date.now(),
   });
-
-  createAccountBtn.addEventListener("click", () => {
-    const auth = readAuth();
-    const isUpdating = auth && auth.username;
-    const title = isUpdating ? "Change Password" : "Create Account";
-    
-    const username = isUpdating ? auth.username : prompt(`${title}\n\nEnter username (letters, numbers, -, _ only):`, "");
-    if (!username) return;
-    
-    const cleanUsername = username.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 20);
-    if (!cleanUsername) {
-      alert("Username must contain at least one letter or number.");
-      return;
-    }
-
-    const password = prompt(`${title}\n\nEnter password (minimum 6 characters):`, "");
-    if (!password) return;
-    
-    if (password.length < 6) {
-      alert("Password must be at least 6 characters.");
-      return;
-    }
-
-    const passwordConfirm = prompt(`${title}\n\nConfirm password:`, "");
-    if (password !== passwordConfirm) {
-      alert("Passwords do not match.");
-      return;
-    }
-
-    const newAuth = {
-      username: cleanUsername,
-      password: btoa(password),
-      createdAt: isUpdating ? (auth.createdAt || Date.now()) : Date.now(),
-    };
-    saveAuth(newAuth);
-    alert(`Account ${isUpdating ? "updated" : "created"} successfully!`);
-    updateDisplay();
+  writeJsonStorage(MP_AUTH_KEY, {
+    username: account.username,
+    email: account.email,
+    updatedAt: Date.now(),
   });
+}
 
-  updateDisplay();
-})();
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(MP_AUTH_KEY);
+}
 
 // ── Sidebar Account Login/Logout ──────────────────────────────────────
 (function initSidebarLogin() {
-  const USER_KEY = "user-login";
   const loginBtn = document.getElementById("sidebar-login-btn");
   const userInfo = document.getElementById("sidebar-user-info");
   const usernameDisplay = document.getElementById("sidebar-username");
@@ -1656,57 +1641,354 @@ if (taxiCanvas) {
 
   if (!loginBtn || !userInfo || !usernameDisplay || !logoutBtn) return;
 
-  function readAuth() {
-    try { return JSON.parse(localStorage.getItem(USER_KEY) || "null"); } catch (e) { return null; }
-  }
-
-  function saveAuth(auth) {
-    localStorage.setItem(USER_KEY, JSON.stringify(auth));
-  }
-
   function updateDisplay() {
-    const auth = readAuth();
-    if (auth && auth.username) {
+    const session = readSession();
+    if (session && session.username) {
       loginBtn.classList.add("hidden");
       userInfo.classList.remove("hidden");
-      usernameDisplay.textContent = auth.username;
-    } else {
-      loginBtn.classList.remove("hidden");
-      userInfo.classList.add("hidden");
+      usernameDisplay.textContent = session.username;
+      return;
     }
+    loginBtn.classList.remove("hidden");
+    userInfo.classList.add("hidden");
   }
 
   loginBtn.addEventListener("click", () => {
-    const username = prompt("Enter your username (3-24 characters):", "");
-    if (!username || !username.trim()) return;
-    
-    const cleanUsername = username.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24);
-    if (cleanUsername.length < 3) {
-      alert("Username must be at least 3 characters.");
-      return;
-    }
-
-    const password = prompt("Enter your password (4+ characters):", "");
-    if (!password) return;
-    
-    if (password.length < 4) {
-      alert("Password must be at least 4 characters.");
-      return;
-    }
-
-    const auth = { username: cleanUsername, password: btoa(password), createdAt: Date.now() };
-    saveAuth(auth);
-    updateDisplay();
+    window.location.href = "login.html";
   });
 
   logoutBtn.addEventListener("click", () => {
-    if (confirm("Log out?")) {
-      localStorage.removeItem(USER_KEY);
-      updateDisplay();
-    }
+    clearSession();
+    updateDisplay();
   });
 
   updateDisplay();
+})();
+
+// ── Multiplayer Name Panel ─────────────────────────────────────────────
+(function initMultiplayerAccount() {
+  const nameDisplay = document.getElementById("account-display-name");
+  const changeNameBtn = document.getElementById("account-change-name-btn");
+  const createAccountBtn = document.getElementById("account-create-btn");
+
+  if (!nameDisplay || !changeNameBtn || !createAccountBtn) return;
+
+  function readMultiplayerAuth() {
+    return readJsonStorage(MP_AUTH_KEY, null);
+  }
+
+  function saveMultiplayerAuth(auth) {
+    writeJsonStorage(MP_AUTH_KEY, auth);
+  }
+
+  function updateDisplay() {
+    const session = readSession();
+    const auth = readMultiplayerAuth();
+    const name = (session && session.username) || (auth && auth.username) || "Guest";
+    nameDisplay.textContent = name;
+    createAccountBtn.textContent = session ? "Account Center" : "Create Account";
+  }
+
+  changeNameBtn.addEventListener("click", () => {
+    const currentName = nameDisplay.textContent || "Guest";
+    const entered = prompt("Enter your multiplayer display name:", currentName);
+    if (!entered) return;
+    const name = cleanUsername(entered).slice(0, 20);
+    if (!name) {
+      alert("Please use letters, numbers, underscores, or hyphens.");
+      return;
+    }
+
+    const session = readSession();
+    const auth = readMultiplayerAuth() || {};
+    auth.username = name;
+    saveMultiplayerAuth(auth);
+
+    if (session && session.email) {
+      const accounts = readAccounts();
+      const account = accounts[session.email];
+      if (account) {
+        account.username = name;
+        accounts[session.email] = account;
+        saveAccounts(accounts);
+      }
+      setSession({ email: session.email, username: name });
+    }
+
+    updateDisplay();
+  });
+
+  createAccountBtn.addEventListener("click", () => {
+    window.location.href = "login.html#create-account-form";
+  });
+
+  updateDisplay();
+})();
+
+// ── Account Center (login page) ───────────────────────────────────────
+(function initAccountCenter() {
+  const page = document.body ? document.body.dataset.page : "";
+  if (page !== "login") return;
+
+  const loginForm = document.getElementById("login-form");
+  const loginEmail = document.getElementById("login-email");
+  const loginPassword = document.getElementById("login-password");
+  const loginStatus = document.getElementById("login-status");
+  const logoutBtn = document.getElementById("logout-btn");
+
+  const createForm = document.getElementById("create-account-form");
+  const createUsername = document.getElementById("create-username");
+  const createEmail = document.getElementById("create-email");
+  const createPassword = document.getElementById("create-password");
+  const createPasswordConfirm = document.getElementById("create-password-confirm");
+  const createStatus = document.getElementById("create-account-status");
+  const createLink = document.getElementById("create-account-link");
+
+  const verifyForm = document.getElementById("verify-account-form");
+  const verifyEmail = document.getElementById("verify-email");
+  const verifyCode = document.getElementById("verify-code");
+  const verifyStatus = document.getElementById("verify-account-status");
+
+  const forgotRequestForm = document.getElementById("forgot-password-request-form");
+  const forgotEmail = document.getElementById("forgot-email");
+  const forgotResetForm = document.getElementById("forgot-password-reset-form");
+  const resetEmail = document.getElementById("reset-email");
+  const resetCode = document.getElementById("reset-code");
+  const resetPassword = document.getElementById("reset-password");
+  const resetPasswordConfirm = document.getElementById("reset-password-confirm");
+  const forgotStatus = document.getElementById("forgot-password-status");
+  const forgotLinkPreview = document.getElementById("forgot-password-link-preview");
+
+  function setStatus(node, text, cssClass) {
+    if (!node) return;
+    node.textContent = text;
+    node.className = `status-text ${cssClass || ""}`.trim();
+  }
+
+  function updateLoginStatus() {
+    const session = readSession();
+    if (!session) {
+      setStatus(loginStatus, "Not signed in.", "");
+      return;
+    }
+    if (loginEmail) {
+      loginEmail.value = session.email || "";
+    }
+    setStatus(loginStatus, `Signed in as ${session.username}.`, "win");
+  }
+
+  if (createForm) {
+    createForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const username = cleanUsername(createUsername.value);
+      const email = normalizeEmail(createEmail.value);
+      const password = createPassword.value;
+      const confirmPassword = createPasswordConfirm.value;
+
+      if (username.length < 3) {
+        setStatus(createStatus, "Username must be at least 3 valid characters.", "lose");
+        return;
+      }
+      if (!email || !email.includes("@")) {
+        setStatus(createStatus, "Enter a valid email address.", "lose");
+        return;
+      }
+      if (password.length < 6) {
+        setStatus(createStatus, "Password must be at least 6 characters.", "lose");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setStatus(createStatus, "Passwords do not match.", "lose");
+        return;
+      }
+
+      const accounts = readAccounts();
+      const existing = accounts[email];
+      if (existing && existing.verified) {
+        setStatus(createStatus, "This email already has a verified account. Sign in or use Forgot Password.", "lose");
+        return;
+      }
+
+      const verificationCode = generateCode();
+      const verificationToken = generateToken();
+      accounts[email] = {
+        username,
+        email,
+        password: btoa(password),
+        verified: false,
+        verificationCode,
+        verificationToken,
+        createdAt: Date.now(),
+      };
+      saveAccounts(accounts);
+
+      const verifyUrl = `${window.location.origin}${window.location.pathname}?verifyEmail=${encodeURIComponent(email)}&verifyCode=${verificationCode}`;
+      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent("Midnight Arcade verification")}&body=${encodeURIComponent(`Use this verification code: ${verificationCode}\nOr open this link: ${verifyUrl}`)}`;
+
+      setStatus(createStatus, "Account created. Check your email for a verification code/link.", "win");
+      if (createLink) {
+        createLink.innerHTML = `Email send preview (static-site mode): <a href="${mailtoUrl}">Open email app</a> | <a href="${verifyUrl}">Verification link</a> | Code: <strong>${verificationCode}</strong>`;
+      }
+      verifyEmail.value = email;
+      verifyCode.value = verificationCode;
+    });
+  }
+
+  if (verifyForm) {
+    verifyForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const email = normalizeEmail(verifyEmail.value);
+      const code = String(verifyCode.value || "").trim();
+
+      const accounts = readAccounts();
+      const account = accounts[email];
+      if (!account) {
+        setStatus(verifyStatus, "No account found for this email.", "lose");
+        return;
+      }
+      if (account.verified) {
+        setStatus(verifyStatus, "Account is already verified.", "win");
+        return;
+      }
+      if (account.verificationCode !== code) {
+        setStatus(verifyStatus, "Invalid verification code.", "lose");
+        return;
+      }
+
+      account.verified = true;
+      delete account.verificationCode;
+      delete account.verificationToken;
+      accounts[email] = account;
+      saveAccounts(accounts);
+      setStatus(verifyStatus, "Email verified. You can now sign in.", "win");
+    });
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const email = normalizeEmail(loginEmail.value);
+      const password = loginPassword.value;
+      const accounts = readAccounts();
+      const account = accounts[email];
+
+      if (!account) {
+        setStatus(loginStatus, "No account found for this email.", "lose");
+        return;
+      }
+      if (!account.verified) {
+        setStatus(loginStatus, "Please verify your email before signing in.", "lose");
+        return;
+      }
+      if (account.password !== btoa(password)) {
+        setStatus(loginStatus, "Incorrect password.", "lose");
+        return;
+      }
+
+      setSession(account);
+      loginPassword.value = "";
+      updateLoginStatus();
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      clearSession();
+      setStatus(loginStatus, "Logged out.", "");
+    });
+  }
+
+  if (forgotRequestForm) {
+    forgotRequestForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const email = normalizeEmail(forgotEmail.value);
+      const accounts = readAccounts();
+      const account = accounts[email];
+
+      if (!account || !account.verified) {
+        setStatus(forgotStatus, "No verified account found for this email.", "lose");
+        return;
+      }
+
+      const resetCodeValue = generateCode();
+      account.resetCode = resetCodeValue;
+      account.resetToken = generateToken();
+      account.resetRequestedAt = Date.now();
+      accounts[email] = account;
+      saveAccounts(accounts);
+
+      const resetUrl = `${window.location.origin}${window.location.pathname}?resetEmail=${encodeURIComponent(email)}&resetCode=${resetCodeValue}`;
+      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent("Midnight Arcade password reset")}&body=${encodeURIComponent(`Use this reset code: ${resetCodeValue}\nOr open this reset link: ${resetUrl}`)}`;
+
+      setStatus(forgotStatus, "Reset link/code generated. Check your email.", "win");
+      if (forgotLinkPreview) {
+        forgotLinkPreview.innerHTML = `Email send preview (static-site mode): <a href="${mailtoUrl}">Open email app</a> | <a href="${resetUrl}">Reset link</a> | Code: <strong>${resetCodeValue}</strong>`;
+      }
+      if (resetEmail) {
+        resetEmail.value = email;
+      }
+      if (resetCode) {
+        resetCode.value = resetCodeValue;
+      }
+    });
+  }
+
+  if (forgotResetForm) {
+    forgotResetForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const email = normalizeEmail(resetEmail.value);
+      const code = String(resetCode.value || "").trim();
+      const nextPassword = resetPassword.value;
+      const confirmPassword = resetPasswordConfirm.value;
+
+      if (nextPassword.length < 6) {
+        setStatus(forgotStatus, "New password must be at least 6 characters.", "lose");
+        return;
+      }
+      if (nextPassword !== confirmPassword) {
+        setStatus(forgotStatus, "New passwords do not match.", "lose");
+        return;
+      }
+
+      const accounts = readAccounts();
+      const account = accounts[email];
+      if (!account || !account.verified) {
+        setStatus(forgotStatus, "No verified account found for this email.", "lose");
+        return;
+      }
+      if (account.resetCode !== code) {
+        setStatus(forgotStatus, "Invalid reset code.", "lose");
+        return;
+      }
+
+      account.password = btoa(nextPassword);
+      delete account.resetCode;
+      delete account.resetToken;
+      delete account.resetRequestedAt;
+      accounts[email] = account;
+      saveAccounts(accounts);
+      setStatus(forgotStatus, "Password reset complete. You can sign in now.", "win");
+    });
+  }
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const verifyEmailParam = normalizeEmail(urlParams.get("verifyEmail"));
+  const verifyCodeParam = String(urlParams.get("verifyCode") || "").trim();
+  if (verifyEmailParam && verifyCodeParam && verifyEmail && verifyCode) {
+    verifyEmail.value = verifyEmailParam;
+    verifyCode.value = verifyCodeParam;
+    setStatus(verifyStatus, "Verification link detected. Click Verify Account.", "");
+  }
+
+  const resetEmailParam = normalizeEmail(urlParams.get("resetEmail"));
+  const resetCodeParam = String(urlParams.get("resetCode") || "").trim();
+  if (resetEmailParam && resetCodeParam && resetEmail && resetCode) {
+    resetEmail.value = resetEmailParam;
+    resetCode.value = resetCodeParam;
+    setStatus(forgotStatus, "Reset link detected. Enter your new password and submit.", "");
+  }
+
+  updateLoginStatus();
 })();
 
 // ── Settings Panel ───────────────────────────────────────────────────────
@@ -1731,15 +2013,7 @@ if (taxiCanvas) {
   }
 
   function applyLightMode(enabled) {
-    if (enabled) {
-      document.documentElement.style.setProperty("--bg", "#f5f5f5");
-      document.documentElement.style.setProperty("--text", "#1a1a1a");
-      document.documentElement.style.setProperty("--border", "rgba(0, 0, 0, 0.12)");
-    } else {
-      document.documentElement.style.setProperty("--bg", "#07121c");
-      document.documentElement.style.setProperty("--text", "#f4f7fb");
-      document.documentElement.style.setProperty("--border", "rgba(255, 255, 255, 0.12)");
-    }
+    document.body.classList.toggle("light-mode", !!enabled);
   }
 
   function applyVolume(vol) {
