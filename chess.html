@@ -109,7 +109,7 @@
               <select id="chess-mode-select">
                 <option value="local">Local 2 Player</option>
                 <option value="computer">Vs Computer</option>
-                <option value="link">Link Multiplayer</option>
+                <option value="live">Live Multiplayer</option>
                 <option value="puzzle">Chess Puzzles</option>
               </select>
               <label for="chess-ai-level">AI Difficulty</label>
@@ -122,7 +122,7 @@
                 <button id="chess-create-link-btn" class="ghost-btn" type="button">Create Invite Link</button>
                 <button id="chess-copy-link-btn" class="ghost-btn" type="button">Copy Link</button>
               </div>
-              <input id="chess-link-input" type="text" readonly placeholder="Invite link appears here" />
+              <input id="chess-link-input" type="text" readonly placeholder="Live room link appears here" />
               <div id="chess-puzzle-controls" class="chess-link-actions">
                 <button id="chess-puzzle-next-btn" class="ghost-btn" type="button">Next Puzzle</button>
               </div>
@@ -145,6 +145,7 @@
       </div>
     </div>
 
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

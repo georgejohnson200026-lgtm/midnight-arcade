@@ -423,6 +423,14 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   let aiTimer = null;
   let puzzleIndex = 0;
   let currentPuzzle = null;
+  let chessPeer = null;
+  let chessConn = null;
+  let liveRoomId = null;
+  let liveRole = null;
+  let liveColor = "w";
+  let liveReady = false;
+
+  const LIVE_ROOM_PREFIX = "ma-chess-";
 
   function createInitialBoard() {
     return [
@@ -1045,17 +1053,268 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     return "Q";
   }
 
-  function updateInviteLink() {
-    if (!linkInput || currentMode !== "link") return;
-    const nextUrl = new URL(window.location.href);
-    nextUrl.searchParams.set("mode", "link");
-    nextUrl.searchParams.set("fen", stateToFen(gameState));
-    linkInput.value = nextUrl.toString();
+  function randomLiveRoomId() {
+    return Math.random().toString(36).slice(2, 8);
+  }
+
+  function hostPeerIdForRoom(roomId) {
+    return `${LIVE_ROOM_PREFIX}${roomId}`;
+  }
+
+  function isLiveMode() {
+    return currentMode === "live";
+  }
+
+  function updateLiveInviteLink() {
+    if (!linkInput || !liveRoomId || !isLiveMode()) {
+      return;
+    }
+    const inviteUrl = new URL(window.location.href);
+    inviteUrl.searchParams.set("mode", "live");
+    inviteUrl.searchParams.set("room", liveRoomId);
+    inviteUrl.searchParams.delete("fen");
+    linkInput.value = inviteUrl.toString();
+  }
+
+  function closeLiveConnection() {
+    if (chessConn) {
+      try {
+        chessConn.close();
+      } catch (error) {
+        // ignore
+      }
+      chessConn = null;
+    }
+  }
+
+  function destroyLivePeer() {
+    if (chessPeer) {
+      try {
+        chessPeer.destroy();
+      } catch (error) {
+        // ignore
+      }
+      chessPeer = null;
+    }
+  }
+
+  function resetLiveSession(options = {}) {
+    closeLiveConnection();
+    destroyLivePeer();
+    liveReady = false;
+    liveRole = null;
+    liveColor = "w";
+    if (options.clearRoom !== false) {
+      liveRoomId = null;
+    }
+    if (options.clearLink !== false && linkInput) {
+      linkInput.value = "";
+    }
+  }
+
+  function sendLiveMessage(payload) {
+    if (!chessConn || !chessConn.open) {
+      return false;
+    }
+    chessConn.send(payload);
+    return true;
+  }
+
+  function syncLiveState(reason = "sync") {
+    if (!isLiveMode() || !liveReady) {
+      return;
+    }
+    sendLiveMessage({
+      type: "sync",
+      reason,
+      fen: stateToFen(gameState),
+      gameOver: !!gameState.gameOver,
+    });
+  }
+
+  function parseStateFromSync(message) {
+    const parsed = parseFen(message.fen);
+    if (!parsed) {
+      return false;
+    }
+    parsed.gameOver = !!message.gameOver;
+    gameState = parsed;
+    selected = null;
+    legalMoves = [];
+    setTurnLabel();
+    renderBoard();
+    if (gameState.gameOver) {
+      updateGameOutcome();
+    } else {
+      setStatus(gameState.turn === liveColor ? "Your move." : "Opponent to move.");
+    }
+    return true;
+  }
+
+  function findMatchingLegalMove(rawMove) {
+    if (!rawMove) {
+      return null;
+    }
+    const fromR = Number(rawMove.fromR);
+    const fromC = Number(rawMove.fromC);
+    const toR = Number(rawMove.toR);
+    const toC = Number(rawMove.toC);
+
+    if (![fromR, fromC, toR, toC].every((value) => Number.isInteger(value) && value >= 0 && value <= 7)) {
+      return null;
+    }
+
+    const moves = getLegalMovesForSquare(gameState, fromR, fromC);
+    return moves.find((move) => move.toR === toR && move.toC === toC) || null;
+  }
+
+  function handleLiveMessage(message) {
+    if (!isLiveMode() || !message || typeof message !== "object") {
+      return;
+    }
+
+    if (message.type === "welcome") {
+      if (liveRole === "guest") {
+        liveColor = message.color === "w" ? "w" : "b";
+        liveReady = true;
+        parseStateFromSync(message);
+        setStatus(liveColor === "w" ? "Connected live game. You are White." : "Connected live game. You are Black.", "win");
+      }
+      return;
+    }
+
+    if (message.type === "sync") {
+      if (!parseStateFromSync(message)) {
+        setStatus("Live sync failed. Try creating a new room.", "lose");
+      }
+      return;
+    }
+
+    if (message.type === "move") {
+      const move = findMatchingLegalMove(message.move);
+      if (!move) {
+        if (liveRole === "host") {
+          syncLiveState("resync-after-invalid");
+        }
+        return;
+      }
+      performMove(move, {
+        fromRemote: true,
+        promotionChoice: message.promotionChoice || "Q",
+      });
+      return;
+    }
+
+    if (message.type === "new-game") {
+      resetGame({ fromRemote: true });
+    }
+  }
+
+  function bindLiveConnection(conn) {
+    chessConn = conn;
+
+    chessConn.on("open", () => {
+      liveReady = true;
+      if (liveRole === "host") {
+        liveColor = "w";
+        updateLiveInviteLink();
+        sendLiveMessage({
+          type: "welcome",
+          color: "b",
+          fen: stateToFen(gameState),
+          gameOver: !!gameState.gameOver,
+        });
+        setStatus("Opponent connected. Live game started.", "win");
+      } else {
+        setStatus("Connected to host. Waiting for board sync...", "win");
+      }
+    });
+
+    chessConn.on("data", (message) => {
+      handleLiveMessage(message);
+    });
+
+    chessConn.on("close", () => {
+      liveReady = false;
+      chessConn = null;
+      if (isLiveMode()) {
+        setStatus("Live connection ended.", "lose");
+      }
+    });
+
+    chessConn.on("error", () => {
+      if (isLiveMode()) {
+        setStatus("Live connection error.", "lose");
+      }
+    });
+  }
+
+  function startLiveHost() {
+    if (typeof Peer === "undefined") {
+      setStatus("Live multiplayer unavailable. PeerJS failed to load.", "lose");
+      return;
+    }
+
+    resetLiveSession({ clearRoom: false, clearLink: false });
+    liveRole = "host";
+    liveColor = "w";
+    liveRoomId = liveRoomId || randomLiveRoomId();
+
+    setStatus("Creating live room...", "win");
+    chessPeer = new Peer(hostPeerIdForRoom(liveRoomId));
+
+    chessPeer.on("open", () => {
+      updateLiveInviteLink();
+      setStatus("Live room ready. Share the invite link and wait for your opponent.", "win");
+    });
+
+    chessPeer.on("connection", (conn) => {
+      closeLiveConnection();
+      bindLiveConnection(conn);
+    });
+
+    chessPeer.on("error", (error) => {
+      if (error && error.type === "unavailable-id") {
+        liveRoomId = randomLiveRoomId();
+        startLiveHost();
+        return;
+      }
+      setStatus("Could not create live room. Try again.", "lose");
+    });
+  }
+
+  function joinLiveRoom(roomId) {
+    if (!roomId) {
+      setStatus("Invalid live room link.", "lose");
+      return;
+    }
+    if (typeof Peer === "undefined") {
+      setStatus("Live multiplayer unavailable. PeerJS failed to load.", "lose");
+      return;
+    }
+
+    resetLiveSession({ clearRoom: false, clearLink: false });
+    liveRole = "guest";
+    liveColor = "b";
+    liveRoomId = roomId;
+    updateLiveInviteLink();
+
+    chessPeer = new Peer();
+    setStatus("Joining live room...", "win");
+
+    chessPeer.on("open", () => {
+      const conn = chessPeer.connect(hostPeerIdForRoom(roomId), { reliable: true });
+      bindLiveConnection(conn);
+    });
+
+    chessPeer.on("error", () => {
+      setStatus("Could not join live room. Check the invite link and try again.", "lose");
+    });
   }
 
   function updateModeUI() {
     const isComputer = currentMode === "computer";
-    const isLink = currentMode === "link";
+    const isLive = currentMode === "live";
     const isPuzzle = currentMode === "puzzle";
 
     if (aiLevelSelect) {
@@ -1066,10 +1325,10 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       aiLevelLabel.classList.toggle("hidden", !isComputer);
     }
     if (linkControls) {
-      linkControls.classList.toggle("hidden", !isLink);
+      linkControls.classList.toggle("hidden", !isLive);
     }
     if (linkInput) {
-      linkInput.classList.toggle("hidden", !isLink);
+      linkInput.classList.toggle("hidden", !isLive);
     }
     if (puzzleControls) {
       puzzleControls.classList.toggle("hidden", !isPuzzle);
@@ -1101,6 +1360,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   }
 
   function loadPuzzle(index) {
+    resetLiveSession();
     puzzleIndex = ((index % chessPuzzles.length) + chessPuzzles.length) % chessPuzzles.length;
     currentPuzzle = chessPuzzles[puzzleIndex];
     const parsed = parseFen(currentPuzzle.fen);
@@ -1118,16 +1378,15 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   function updateFromUrlIfPresent() {
     const params = new URLSearchParams(window.location.search);
     const requestedMode = params.get("mode");
-    if (["local", "computer", "link", "puzzle"].includes(requestedMode)) {
+    if (["local", "computer", "live", "puzzle"].includes(requestedMode)) {
       currentMode = requestedMode;
       modeSelect.value = requestedMode;
     }
 
-    if (currentMode === "link") {
-      const fen = params.get("fen");
-      const parsed = fen ? parseFen(fen) : null;
-      if (parsed) {
-        gameState = parsed;
+    if (currentMode === "live") {
+      liveRoomId = params.get("room") || null;
+      if (liveRoomId) {
+        updateLiveInviteLink();
       }
     }
   }
@@ -1194,10 +1453,19 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
     renderBoard();
 
-    if (currentMode === "link") {
-      updateInviteLink();
+    if (currentMode === "live" && !options.fromRemote) {
+      sendLiveMessage({
+        type: "move",
+        move: {
+          fromR: move.fromR,
+          fromC: move.fromC,
+          toR: move.toR,
+          toC: move.toC,
+        },
+        promotionChoice,
+      });
       if (!gameState.gameOver) {
-        setStatus("Move made. Copy and send the updated invite link to your opponent.", "win");
+        setStatus("Move sent. Waiting for opponent.", "win");
       }
     }
 
@@ -1211,6 +1479,17 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
     const piece = gameState.board[r][c];
 
+    if (currentMode === "live") {
+      if (!liveReady) {
+        setStatus("Live room not connected yet.", "lose");
+        return;
+      }
+      if (gameState.turn !== liveColor) {
+        setStatus("Wait for your opponent's move.");
+        return;
+      }
+    }
+
     if (selected && squareHasLegalMove(r, c)) {
       const move = legalMoves.find((entry) => entry.toR === r && entry.toC === c);
       if (move) {
@@ -1219,7 +1498,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       }
     }
 
-    if (piece && colorOf(piece) === gameState.turn) {
+    if (piece && colorOf(piece) === gameState.turn && (currentMode !== "live" || colorOf(piece) === liveColor)) {
       selected = { r, c };
       legalMoves = getLegalMovesForSquare(gameState, r, c);
       renderBoard();
@@ -1245,15 +1524,24 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     setTurnLabel();
     if (currentMode === "computer") {
       setStatus("White vs computer. White to move.");
-    } else if (currentMode === "link") {
-      setStatus("Link multiplayer ready. Make a move, then share the generated link.");
+    } else if (currentMode === "live") {
+      if (liveRole === "guest") {
+        setStatus("Live room joined. Waiting for host and board sync...", "win");
+      } else {
+        setStatus("Live multiplayer ready. Create an invite link to start.", "win");
+      }
     } else {
       setStatus("White to move.");
     }
     renderBoard();
 
-    if (currentMode === "link") {
-      updateInviteLink();
+    if (currentMode === "live") {
+      if (liveRole === "host") {
+        updateLiveInviteLink();
+      }
+      if (liveReady) {
+        syncLiveState("new-game");
+      }
     }
 
     scheduleComputerMove();
@@ -1269,8 +1557,17 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   });
 
   modeSelect.addEventListener("change", () => {
+    const nextMode = modeSelect.value;
+    if (currentMode === "live" && nextMode !== "live") {
+      resetLiveSession();
+    }
     currentMode = modeSelect.value;
     updateModeUI();
+    if (currentMode === "live" && liveRoomId) {
+      resetGame();
+      joinLiveRoom(liveRoomId);
+      return;
+    }
     resetGame();
   });
 
@@ -1283,12 +1580,16 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
   if (createLinkBtn) {
     createLinkBtn.addEventListener("click", () => {
-      if (currentMode !== "link") {
-        setStatus("Switch to Link Multiplayer mode first.", "lose");
+      if (currentMode !== "live") {
+        setStatus("Switch to Live Multiplayer mode first.", "lose");
         return;
       }
-      updateInviteLink();
-      setStatus("Invite link generated. Send it to your opponent.", "win");
+      gameState = createInitialState();
+      selected = null;
+      legalMoves = [];
+      setTurnLabel();
+      renderBoard();
+      startLiveHost();
     });
   }
 
@@ -1319,13 +1620,11 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
   updateFromUrlIfPresent();
   updateModeUI();
-  if (currentMode === "link" && gameState) {
-    selected = null;
-    legalMoves = [];
-    setTurnLabel();
-    setStatus("Invite position loaded. Continue the game and share the updated link each turn.", "win");
-    renderBoard();
-    updateInviteLink();
+  if (currentMode === "live") {
+    resetGame();
+    if (liveRoomId) {
+      joinLiveRoom(liveRoomId);
+    }
   } else if (currentMode === "puzzle") {
     loadPuzzle(puzzleIndex);
   } else {
