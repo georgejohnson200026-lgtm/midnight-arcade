@@ -2842,13 +2842,19 @@ if (taxiCanvas) {
         }
 
         taxiState.pedestrians.forEach((person) => {
-          person.depth += Math.max(0, worldSpeed / 230) * deltaTime;
+          if (person.hit) {
+            // Once hit, the person should quickly fall behind the player and leave screen.
+            const hitDrift = worldSpeed > 0 ? Math.max(0.95, worldSpeed / 85) : 0;
+            person.depth += hitDrift * deltaTime;
+          } else {
+            person.depth += Math.max(0, worldSpeed / 230) * deltaTime;
+          }
           if (person.flattenedTimer > 0) {
             person.flattenedTimer = Math.max(0, person.flattenedTimer - deltaTime);
           }
         });
 
-        taxiState.pedestrians = taxiState.pedestrians.filter((person) => person.depth < 1.12);
+        taxiState.pedestrians = taxiState.pedestrians.filter((person) => person.depth < (person.hit ? 1.03 : 1.12));
       }
 
       enforceTrafficSpacing();
@@ -3360,19 +3366,6 @@ if (taxiCanvas) {
     taxiContext.moveTo(taxiCanvas.width - 10, 180);
     taxiContext.lineTo(taxiCanvas.width - 10, 460);
     taxiContext.stroke();
-
-    taxiContext.fillStyle = "#ffec2f";
-    taxiContext.strokeStyle = "#0f0f0f";
-    taxiContext.lineWidth = 3;
-    taxiContext.save();
-    taxiContext.translate(taxiCanvas.width - 72, 256);
-    taxiContext.rotate(Math.PI / 4);
-    taxiContext.beginPath();
-    taxiContext.roundRect(-34, -34, 68, 68, 10);
-    taxiContext.fill();
-    taxiContext.stroke();
-    taxiContext.restore();
-    drawOutlinedText("10", taxiCanvas.width - 72, 266, 28, "center");
   }
 
   function drawTaxiHud() {
