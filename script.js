@@ -2365,6 +2365,7 @@ if (taxiCanvas) {
     score: 0,
     message: "Press the arrow keys to drive. Space jumps once you have enough speed.",
     messageTimer: 0,
+    started: false,
     paused: false,
     lastTime: 0,
   };
@@ -2544,6 +2545,7 @@ if (taxiCanvas) {
     taxiState.level = 1;
     taxiState.score = 0;
     taxiState.messageTimer = 0;
+    taxiState.started = false;
     taxiState.paused = false;
     taxiState.lastTime = 0;
     clearTaxiKeys();
@@ -2577,6 +2579,12 @@ if (taxiCanvas) {
         taxiStatus.classList.add("lose");
       }
 
+      return;
+    }
+
+    if (!taxiState.started) {
+      taxiStatus.textContent = "Press Up, Left, Right, or Space to start the run.";
+      taxiStatus.className = "status-text";
       return;
     }
 
@@ -2622,6 +2630,20 @@ if (taxiCanvas) {
     }
 
     const player = taxiState.player;
+
+    if (!taxiState.started) {
+      player.laneVisual += (player.lane - player.laneVisual) * Math.min(1, deltaTime * 8);
+      taxiSpeed.textContent = Math.round(player.speed).toString();
+      taxiSpeedFill.style.width = `${(player.speed / maxTaxiSpeed) * 100}%`;
+      taxiDistance.textContent = Math.max(0, taxiState.distanceMeters / 1609).toFixed(1);
+      updateTaxiStatus(deltaTime);
+      return;
+    }
+
+    if (taxiState.distanceMeters <= 0) {
+      beginNextTaxiLevel();
+    }
+
     const runActive = taxiState.timeLeft > 0 && taxiState.distanceMeters > 0;
 
     player.crashTimer = Math.max(0, player.crashTimer - deltaTime);
@@ -2702,10 +2724,6 @@ if (taxiCanvas) {
           setTaxiMessage("Crash. You got knocked back and lost speed. Floor it to recover.", 1.4);
           break;
         }
-      }
-
-      if (taxiState.distanceMeters <= 0) {
-        beginNextTaxiLevel();
       }
 
       if (taxiState.timeLeft <= 0 && taxiState.distanceMeters > 0) {
@@ -3270,6 +3288,11 @@ if (taxiCanvas) {
 
     if (taxiState.paused) {
       return;
+    }
+
+    if (!taxiState.started && ["ArrowUp", "ArrowLeft", "ArrowRight", "Space"].includes(event.code) && !event.repeat) {
+      taxiState.started = true;
+      setTaxiMessage("Run started. Build speed and stay sharp.", 1.1);
     }
 
     if (event.code === "ArrowUp") {
