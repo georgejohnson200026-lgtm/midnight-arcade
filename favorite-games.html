@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Midnight Arcade</title>
+    <title>Favorite Games | Midnight Arcade</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,7 +12,7 @@
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body id="top" data-page="home">
+  <body id="top" data-page="favorites">
     <div class="orb orb-left" aria-hidden="true"></div>
     <div class="orb orb-right" aria-hidden="true"></div>
 
@@ -22,7 +22,7 @@
           <span class="sidebar-mark">MA</span>
           <div>
             <p class="sidebar-title">Midnight Arcade</p>
-            <p class="sidebar-subtitle">Launchpad</p>
+            <p class="sidebar-subtitle">Favorites</p>
           </div>
         </div>
 
@@ -41,8 +41,8 @@
         </label>
 
         <nav class="sidebar-nav" aria-label="Homepage navigation">
-          <a class="sidebar-link active" href="index.html">Home</a>
-          <a class="sidebar-link" data-favorites-link href="favorite-games.html">Favorite Games</a>
+          <a class="sidebar-link" href="index.html">Home</a>
+          <a class="sidebar-link active" data-favorites-link href="favorite-games.html">Favorite Games</a>
           <a class="sidebar-link" href="crazy-taxi.html">Skilled Games</a>
           <a class="sidebar-link" href="tic-tac-toe.html">Multiplayer</a>
         </nav>
@@ -93,82 +93,20 @@
       </aside>
 
       <div class="page-content">
-        <header class="hero">
-          <p class="eyebrow">Open 24/7</p>
-          <h1>Midnight Arcade</h1>
-          <p class="subtitle">Pick a button and open each game on its own page.</p>
+        <header class="hero page-hero">
+          <p class="eyebrow">Your Picks</p>
+          <h1>Favorite Games</h1>
+          <p class="subtitle">Save arcade games from the homepage, then come back here to launch them fast.</p>
+          <a class="back-link" href="index.html">Back to homepage</a>
         </header>
 
-        <main class="launcher-grid" aria-label="Game launcher">
-          <article class="launcher-card">
-            <span class="launcher-tag">Classic</span>
-            <h2 class="launcher-title">Number Guess</h2>
-            <p class="launcher-copy">Guess the hidden number between 1 and 100.</p>
-            <div class="launcher-card-actions">
-              <a class="launcher-cta" href="number-guess.html">Open game</a>
-              <button class="launcher-favorite-btn ghost-btn" type="button" data-game-path="number-guess.html">Favorite</button>
-            </div>
-          </article>
-
-          <article class="launcher-card">
-            <span class="launcher-tag">Quick Match</span>
-            <h2 class="launcher-title">Rock Paper Scissors</h2>
-            <p class="launcher-copy">Challenge the CPU in a fast reaction round.</p>
-            <div class="launcher-card-actions">
-              <a class="launcher-cta" href="rock-paper-scissors.html">Open game</a>
-              <button class="launcher-favorite-btn ghost-btn" type="button" data-game-path="rock-paper-scissors.html">Favorite</button>
-            </div>
-          </article>
-
-          <article class="launcher-card">
-            <span class="launcher-tag">Multiplayer</span>
-            <h2 class="launcher-title">Tic-Tac-Toe</h2>
-            <p class="launcher-copy">Two players, one board, and three in a row wins.</p>
-            <div class="launcher-card-actions">
-              <a class="launcher-cta" href="tic-tac-toe.html">Open game</a>
-              <button class="launcher-favorite-btn ghost-btn" type="button" data-game-path="tic-tac-toe.html">Favorite</button>
-            </div>
-          </article>
-
-          <article class="launcher-card">
-            <span class="launcher-tag">Favorite</span>
-            <h2 class="launcher-title">Hangman</h2>
-            <p class="launcher-copy">Pick a theme and difficulty, then solve the word.</p>
-            <div class="launcher-card-actions">
-              <a class="launcher-cta" href="hangman.html">Open game</a>
-              <button class="launcher-favorite-btn ghost-btn" type="button" data-game-path="hangman.html">Favorite</button>
-            </div>
-          </article>
-
-          <article class="launcher-card launcher-card-wide">
-            <span class="launcher-tag">Skilled</span>
-            <h2 class="launcher-title">Crazy Taxi</h2>
-            <p class="launcher-copy">Drive, dodge, and jump through traffic on the highway.</p>
-            <div class="launcher-card-actions">
-              <a class="launcher-cta" href="crazy-taxi.html">Open game</a>
-              <button class="launcher-favorite-btn ghost-btn" type="button" data-game-path="crazy-taxi.html">Favorite</button>
-            </div>
-          </article>
+        <main class="games-grid single-game-grid">
+          <section class="game-card favorites-page-card">
+            <h2>Saved Games</h2>
+            <p id="favorites-status" class="status-text">Loading your favorites...</p>
+            <div id="favorites-grid" class="launcher-grid favorites-grid"></div>
+          </section>
         </main>
-
-        <p id="home-favorite-status" class="status-text home-favorite-status">Log in to save games to your favorites list.</p>
-
-        <section class="mp-invite-section">
-          <h2 class="mp-invite-title">Play with a Friend</h2>
-          <p class="mp-invite-desc">Create a multiplayer invite link and send it to a friend. They join instantly — no account required.</p>
-          <div class="mp-invite-choices">
-            <a class="mp-invite-choice" href="hangman.html?create=1">
-              <span class="launcher-tag">Multiplayer</span>
-              <span class="mp-invite-choice-name">Hangman</span>
-              <span class="launcher-cta">Create invite</span>
-            </a>
-            <a class="mp-invite-choice" href="tic-tac-toe.html?create=1">
-              <span class="launcher-tag">Multiplayer</span>
-              <span class="mp-invite-choice-name">Tic-Tac-Toe</span>
-              <span class="launcher-cta">Create invite</span>
-            </a>
-          </div>
-        </section>
 
         <footer class="site-footer">
           <p>Midnight Arcade • Dark mode by default</p>

@@ -5,6 +5,11 @@ const gameRoutes = [
     aliases: ["home", "homepage", "midnight arcade"],
   },
   {
+    path: "favorite-games.html",
+    title: "Favorite Games",
+    aliases: ["favorite games", "favorites", "saved games"],
+  },
+  {
     path: "login.html",
     title: "Login",
     aliases: ["login", "sign in", "account"],
@@ -35,6 +40,39 @@ const gameRoutes = [
     aliases: ["crazy taxi", "taxi", "driving game"],
   },
 ];
+
+const favoriteGameCatalog = {
+  "number-guess.html": {
+    path: "number-guess.html",
+    title: "Number Guess",
+    tag: "Classic",
+    description: "Guess the hidden number between 1 and 100.",
+  },
+  "rock-paper-scissors.html": {
+    path: "rock-paper-scissors.html",
+    title: "Rock Paper Scissors",
+    tag: "Quick Match",
+    description: "Challenge the CPU in a fast reaction round.",
+  },
+  "tic-tac-toe.html": {
+    path: "tic-tac-toe.html",
+    title: "Tic-Tac-Toe",
+    tag: "Multiplayer",
+    description: "Two players, one board, and three in a row wins.",
+  },
+  "hangman.html": {
+    path: "hangman.html",
+    title: "Hangman",
+    tag: "Word Play",
+    description: "Pick a theme and difficulty, then solve the word.",
+  },
+  "crazy-taxi.html": {
+    path: "crazy-taxi.html",
+    title: "Crazy Taxi",
+    tag: "Skilled",
+    description: "Drive, dodge, and jump through traffic on the highway.",
+  },
+};
 
 function normalizeGameSearch(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -1570,6 +1608,7 @@ const ACCOUNTS_KEY = "ma-accounts-v1";
 const PENDING_SIGNUPS_KEY = "ma-pending-signups-v1";
 const SESSION_KEY = "user-login";
 const MP_AUTH_KEY = "ma-auth";
+const FAVORITES_LOCK_MESSAGE = "Please log in to look at your favorite games";
 
 function readJsonStorage(key, fallbackValue) {
   try {
@@ -1668,6 +1707,199 @@ function deleteCurrentAccount() {
   clearSession();
   return { ok: true, message: "Your account has been deleted." };
 }
+
+function readCurrentAccount() {
+  const session = readSession();
+  if (!session || !session.email) {
+    return null;
+  }
+
+  const email = normalizeEmail(session.email);
+  const accounts = readAccounts();
+  const account = accounts[email];
+  if (!account) {
+    return null;
+  }
+
+  return { email, account, accounts };
+}
+
+function getCurrentFavorites() {
+  const current = readCurrentAccount();
+  if (!current) {
+    return [];
+  }
+  return Array.isArray(current.account.favorites) ? current.account.favorites.filter((path) => favoriteGameCatalog[path]) : [];
+}
+
+function isFavoriteGame(path) {
+  return getCurrentFavorites().includes(path);
+}
+
+function saveCurrentFavorites(favorites) {
+  const current = readCurrentAccount();
+  if (!current) {
+    return false;
+  }
+
+  current.account.favorites = [...new Set(favorites.filter((path) => favoriteGameCatalog[path]))];
+  current.accounts[current.email] = current.account;
+  saveAccounts(current.accounts);
+  window.dispatchEvent(new CustomEvent("ma-favorites-changed"));
+  return true;
+}
+
+function toggleFavoriteGame(path) {
+  if (!favoriteGameCatalog[path]) {
+    return { ok: false, message: "That game cannot be favorited." };
+  }
+
+  const current = readCurrentAccount();
+  if (!current) {
+    return { ok: false, message: "Please log in to save favorites." };
+  }
+
+  const favorites = getCurrentFavorites();
+  const nextFavorites = favorites.includes(path) ? favorites.filter((entry) => entry !== path) : [...favorites, path];
+  saveCurrentFavorites(nextFavorites);
+  const action = favorites.includes(path) ? "removed from" : "saved to";
+  return { ok: true, active: !favorites.includes(path), message: `${favoriteGameCatalog[path].title} ${action} favorite games.` };
+}
+
+function createFavoriteCard(game) {
+  const card = document.createElement("article");
+  card.className = "launcher-card";
+  card.innerHTML = `
+    <span class="launcher-tag">${game.tag}</span>
+    <h2 class="launcher-title">${game.title}</h2>
+    <p class="launcher-copy">${game.description}</p>
+    <div class="launcher-card-actions">
+      <a class="launcher-cta" href="${game.path}">Open game</a>
+      <button class="launcher-favorite-btn ghost-btn is-active" type="button" data-game-path="${game.path}">Favorited</button>
+    </div>
+  `;
+  return card;
+}
+
+(function initFavoritesNav() {
+  const favoriteLinks = Array.from(document.querySelectorAll("[data-favorites-link]"));
+  if (!favoriteLinks.length) return;
+
+  function updateFavoriteLinks() {
+    const signedIn = !!readSession();
+    favoriteLinks.forEach((link) => {
+      link.classList.toggle("is-locked", !signedIn);
+      link.setAttribute("aria-disabled", signedIn ? "false" : "true");
+      link.title = signedIn ? "" : FAVORITES_LOCK_MESSAGE;
+    });
+  }
+
+  favoriteLinks.forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (readSession()) {
+        return;
+      }
+      event.preventDefault();
+      alert(FAVORITES_LOCK_MESSAGE);
+    });
+  });
+
+  window.addEventListener("ma-auth-changed", updateFavoriteLinks);
+  updateFavoriteLinks();
+})();
+
+(function initHomeFavorites() {
+  const page = document.body ? document.body.dataset.page : "";
+  if (page !== "home") return;
+
+  const status = document.getElementById("home-favorite-status");
+  const favoriteButtons = Array.from(document.querySelectorAll(".launcher-favorite-btn[data-game-path]"));
+  if (!favoriteButtons.length) return;
+
+  function setHomeStatus(message, cssClass) {
+    if (!status) return;
+    status.textContent = message;
+    status.className = `status-text home-favorite-status ${cssClass || ""}`.trim();
+  }
+
+  function updateFavoriteButtons() {
+    const signedIn = !!readSession();
+    favoriteButtons.forEach((button) => {
+      const gamePath = button.dataset.gamePath;
+      const active = signedIn && isFavoriteGame(gamePath);
+      button.textContent = active ? "Favorited" : "Favorite";
+      button.classList.toggle("is-active", active);
+    });
+
+    if (signedIn) {
+      setHomeStatus("Choose Favorite on any game to save it to your list.", "");
+      return;
+    }
+    setHomeStatus("Log in to save games to your favorites list.", "");
+  }
+
+  favoriteButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const result = toggleFavoriteGame(button.dataset.gamePath);
+      setHomeStatus(result.message, result.ok ? "win" : "lose");
+      updateFavoriteButtons();
+    });
+  });
+
+  window.addEventListener("ma-auth-changed", updateFavoriteButtons);
+  window.addEventListener("ma-favorites-changed", updateFavoriteButtons);
+  updateFavoriteButtons();
+})();
+
+(function initFavoritesPage() {
+  const page = document.body ? document.body.dataset.page : "";
+  if (page !== "favorites") return;
+
+  const status = document.getElementById("favorites-status");
+  const grid = document.getElementById("favorites-grid");
+  if (!status || !grid) return;
+
+  function setFavoritesStatus(message, cssClass) {
+    status.textContent = message;
+    status.className = `status-text ${cssClass || ""}`.trim();
+  }
+
+  function renderFavorites() {
+    const session = readSession();
+    grid.innerHTML = "";
+
+    if (!session) {
+      setFavoritesStatus(FAVORITES_LOCK_MESSAGE, "lose");
+      return;
+    }
+
+    const favorites = getCurrentFavorites();
+    if (!favorites.length) {
+      setFavoritesStatus("No games in favorite games yet. Save some from the homepage.", "");
+      return;
+    }
+
+    setFavoritesStatus(`You have ${favorites.length} favorite game${favorites.length === 1 ? "" : "s"}.`, "win");
+    favorites.forEach((path) => {
+      const game = favoriteGameCatalog[path];
+      if (!game) return;
+      const card = createFavoriteCard(game);
+      const button = card.querySelector(".launcher-favorite-btn");
+      if (button) {
+        button.addEventListener("click", () => {
+          const result = toggleFavoriteGame(path);
+          setFavoritesStatus(result.message, result.ok ? "win" : "lose");
+          renderFavorites();
+        });
+      }
+      grid.appendChild(card);
+    });
+  }
+
+  window.addEventListener("ma-auth-changed", renderFavorites);
+  window.addEventListener("ma-favorites-changed", renderFavorites);
+  renderFavorites();
+})();
 
 // ── Sidebar Account Login/Logout ──────────────────────────────────────
 (function initSidebarLogin() {

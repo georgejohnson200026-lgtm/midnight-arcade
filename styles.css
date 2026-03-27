@@ -192,6 +192,13 @@ a {
   border-color: rgba(66, 232, 180, 0.28);
 }
 
+.sidebar-link.is-locked {
+  opacity: 0.58;
+  color: #9aa5bf;
+  background: rgba(255, 255, 255, 0.015);
+  border-color: rgba(110, 130, 180, 0.08);
+}
+
 .sidebar-settings {
   margin-top: auto;
   background: rgba(255, 255, 255, 0.04);
@@ -285,6 +292,14 @@ a {
   grid-column: span 2;
 }
 
+.launcher-card-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .launcher-tag {
   width: fit-content;
   padding: 0.35rem 0.6rem;
@@ -309,7 +324,6 @@ a {
 }
 
 .launcher-cta {
-  margin-top: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -319,6 +333,29 @@ a {
   background: linear-gradient(135deg, #42e8b4, #ffcc66);
   color: #07121c;
   font-weight: 800;
+}
+
+.launcher-favorite-btn {
+  min-width: 102px;
+}
+
+.launcher-favorite-btn.is-active {
+  background: rgba(66, 232, 180, 0.14);
+  border-color: rgba(66, 232, 180, 0.34);
+}
+
+.home-favorite-status {
+  max-width: 980px;
+  margin: -0.4rem auto 0;
+}
+
+.favorites-page-card {
+  max-width: 980px;
+}
+
+.favorites-grid {
+  margin: 1rem 0 0;
+  max-width: none;
 }
 
 .single-game-grid {
