@@ -379,52 +379,11 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     return Math.PI / 2;
   }
 
-  function drawSegmentCell(segment, index) {
-    const inset = 2;
-    const px = segment.x * CELL_SIZE + inset;
-    const py = segment.y * CELL_SIZE + inset;
-    const size = CELL_SIZE - inset * 2;
-    const radius = Math.max(3, size * 0.24);
-
-    const skin = ctx.createLinearGradient(px, py, px + size, py + size);
-    if (index === 0) {
-      skin.addColorStop(0, "#89ffd2");
-      skin.addColorStop(0.55, "#35c997");
-      skin.addColorStop(1, "#1b7f62");
-    } else {
-      skin.addColorStop(0, "#7de8bf");
-      skin.addColorStop(0.6, "#31b98a");
-      skin.addColorStop(1, "#176f56");
-    }
-
-    ctx.beginPath();
-    if (typeof ctx.roundRect === "function") {
-      ctx.roundRect(px, py, size, size, radius);
-    } else {
-      ctx.rect(px, py, size, size);
-    }
-    ctx.fillStyle = skin;
-    ctx.fill();
-
-    ctx.beginPath();
-    if (typeof ctx.roundRect === "function") {
-      ctx.roundRect(px, py, size, size, radius);
-    } else {
-      ctx.rect(px, py, size, size);
-    }
-    ctx.strokeStyle = "rgba(6, 44, 34, 0.6)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Subtle highlight for rounded, 3D body feel.
-    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-    ctx.beginPath();
-    if (typeof ctx.roundRect === "function") {
-      ctx.roundRect(px + 2, py + 2, size * 0.55, Math.max(3, size * 0.2), Math.max(2, radius * 0.6));
-    } else {
-      ctx.rect(px + 2, py + 2, size * 0.55, Math.max(3, size * 0.2));
-    }
-    ctx.fill();
+  function segmentCenter(segment) {
+    return {
+      x: segment.x * CELL_SIZE + CELL_SIZE / 2,
+      y: segment.y * CELL_SIZE + CELL_SIZE / 2,
+    };
   }
 
   function drawGrid() {
@@ -464,62 +423,123 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     // Ground shadow to anchor the apple on the board.
     ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
     ctx.beginPath();
-    ctx.ellipse(centerX, centerY + CELL_SIZE * 0.28, CELL_SIZE * 0.28, CELL_SIZE * 0.14, 0, 0, Math.PI * 2);
+    ctx.ellipse(centerX, centerY + CELL_SIZE * 0.32, CELL_SIZE * 0.32, CELL_SIZE * 0.12, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // Apple body silhouette (two-lobed top, tapered bottom).
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY - CELL_SIZE * 0.36);
+    ctx.bezierCurveTo(
+      centerX - CELL_SIZE * 0.32,
+      centerY - CELL_SIZE * 0.43,
+      centerX - CELL_SIZE * 0.45,
+      centerY - CELL_SIZE * 0.07,
+      centerX - CELL_SIZE * 0.2,
+      centerY + CELL_SIZE * 0.2
+    );
+    ctx.bezierCurveTo(
+      centerX - CELL_SIZE * 0.15,
+      centerY + CELL_SIZE * 0.38,
+      centerX + CELL_SIZE * 0.15,
+      centerY + CELL_SIZE * 0.38,
+      centerX + CELL_SIZE * 0.2,
+      centerY + CELL_SIZE * 0.2
+    );
+    ctx.bezierCurveTo(
+      centerX + CELL_SIZE * 0.45,
+      centerY - CELL_SIZE * 0.07,
+      centerX + CELL_SIZE * 0.32,
+      centerY - CELL_SIZE * 0.43,
+      centerX,
+      centerY - CELL_SIZE * 0.36
+    );
+
     const appleGradient = ctx.createRadialGradient(
-      centerX - CELL_SIZE * 0.12,
-      centerY - CELL_SIZE * 0.16,
-      CELL_SIZE * 0.09,
+      centerX - CELL_SIZE * 0.14,
+      centerY - CELL_SIZE * 0.2,
+      CELL_SIZE * 0.08,
       centerX,
       centerY,
-      CELL_SIZE * 0.42
+      CELL_SIZE * 0.5
     );
-    appleGradient.addColorStop(0, "#ffd8d8");
-    appleGradient.addColorStop(0.35, "#ff6a63");
-    appleGradient.addColorStop(1, "#991c1c");
+    appleGradient.addColorStop(0, "#ffe1c9");
+    appleGradient.addColorStop(0.45, "#ff7f3f");
+    appleGradient.addColorStop(1, "#9a2f10");
 
     ctx.fillStyle = appleGradient;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, CELL_SIZE * 0.36, 0, Math.PI * 2);
     ctx.fill();
 
     // Apple top dimple.
-    ctx.fillStyle = "rgba(70, 10, 10, 0.35)";
+    ctx.fillStyle = "rgba(60, 20, 7, 0.45)";
     ctx.beginPath();
-    ctx.ellipse(centerX, centerY - CELL_SIZE * 0.22, CELL_SIZE * 0.09, CELL_SIZE * 0.05, 0, 0, Math.PI * 2);
+    ctx.ellipse(centerX, centerY - CELL_SIZE * 0.28, CELL_SIZE * 0.09, CELL_SIZE * 0.04, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Stem.
-    ctx.strokeStyle = "#5f3a1d";
+    ctx.strokeStyle = "#6b4320";
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(centerX - CELL_SIZE * 0.02, centerY - CELL_SIZE * 0.22);
-    ctx.lineTo(centerX + CELL_SIZE * 0.06, centerY - CELL_SIZE * 0.42);
+    ctx.moveTo(centerX - CELL_SIZE * 0.02, centerY - CELL_SIZE * 0.29);
+    ctx.lineTo(centerX + CELL_SIZE * 0.04, centerY - CELL_SIZE * 0.48);
     ctx.stroke();
 
     // Leaf.
-    ctx.fillStyle = "#64c66d";
+    ctx.fillStyle = "#6ecf58";
     ctx.beginPath();
-    ctx.ellipse(centerX + CELL_SIZE * 0.16, centerY - CELL_SIZE * 0.34, CELL_SIZE * 0.1, CELL_SIZE * 0.05, -0.4, 0, Math.PI * 2);
+    ctx.ellipse(centerX + CELL_SIZE * 0.16, centerY - CELL_SIZE * 0.4, CELL_SIZE * 0.11, CELL_SIZE * 0.055, -0.45, 0, Math.PI * 2);
     ctx.fill();
 
     // Gloss highlight.
     ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
     ctx.beginPath();
-    ctx.ellipse(centerX - CELL_SIZE * 0.12, centerY - CELL_SIZE * 0.14, CELL_SIZE * 0.08, CELL_SIZE * 0.05, -0.45, 0, Math.PI * 2);
+    ctx.ellipse(centerX - CELL_SIZE * 0.13, centerY - CELL_SIZE * 0.16, CELL_SIZE * 0.09, CELL_SIZE * 0.05, -0.5, 0, Math.PI * 2);
     ctx.fill();
   }
 
   function drawSnake() {
-    snake.forEach((segment, index) => {
-      drawSegmentCell(segment, index);
-    });
+    if (!snake.length) return;
+
+    const points = snake.map(segmentCenter);
+    const bodyWidth = CELL_SIZE * 0.58;
+    const headWidth = CELL_SIZE * 0.84;
+
+    // Draw one continuous snake body path.
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length - 1; i += 1) {
+      const midX = (points[i].x + points[i + 1].x) / 2;
+      const midY = (points[i].y + points[i + 1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+    }
+    if (points.length > 1) {
+      const last = points[points.length - 1];
+      ctx.lineTo(last.x, last.y);
+    }
+
+    // Body shadow for depth.
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+    ctx.lineWidth = bodyWidth + 6;
+    ctx.stroke();
+
+    const bodyGradient = ctx.createLinearGradient(points[0].x, points[0].y - bodyWidth, points[0].x, points[0].y + bodyWidth);
+    bodyGradient.addColorStop(0, "#8bd18b");
+    bodyGradient.addColorStop(0.45, "#4f9b53");
+    bodyGradient.addColorStop(1, "#2f5f34");
+
+    ctx.strokeStyle = bodyGradient;
+    ctx.lineWidth = bodyWidth;
+    ctx.stroke();
+
+    // Top highlight strip across the body.
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    ctx.lineWidth = bodyWidth * 0.25;
+    ctx.stroke();
 
     const head = snake[0];
-    if (!head) return;
-
     const angle = directionToAngle(direction);
     const centerX = head.x * CELL_SIZE + CELL_SIZE / 2;
     const centerY = head.y * CELL_SIZE + CELL_SIZE / 2;
@@ -528,50 +548,48 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     ctx.translate(centerX, centerY);
     ctx.rotate(angle);
 
-    // Head bulge.
-    const headSkin = ctx.createLinearGradient(-CELL_SIZE * 0.35, -CELL_SIZE * 0.3, CELL_SIZE * 0.32, CELL_SIZE * 0.28);
-    headSkin.addColorStop(0, "#98ffd7");
-    headSkin.addColorStop(0.55, "#38cd9a");
-    headSkin.addColorStop(1, "#1b8062");
+    // Wider head with depth.
+    const headSkin = ctx.createLinearGradient(-headWidth * 0.6, -headWidth * 0.5, headWidth * 0.6, headWidth * 0.5);
+    headSkin.addColorStop(0, "#9ee09d");
+    headSkin.addColorStop(0.5, "#5ca85d");
+    headSkin.addColorStop(1, "#345f36");
     ctx.fillStyle = headSkin;
     ctx.beginPath();
-    ctx.ellipse(CELL_SIZE * 0.03, 0, CELL_SIZE * 0.42, CELL_SIZE * 0.34, 0, 0, Math.PI * 2);
+    ctx.ellipse(headWidth * 0.1, 0, headWidth * 0.54, headWidth * 0.42, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Eyes.
-    ctx.fillStyle = "#f5fff9";
+    // Eyes (larger and obvious).
+    ctx.fillStyle = "#fdf9f0";
     ctx.beginPath();
-    ctx.ellipse(CELL_SIZE * 0.16, -CELL_SIZE * 0.13, CELL_SIZE * 0.08, CELL_SIZE * 0.065, 0, 0, Math.PI * 2);
-    ctx.ellipse(CELL_SIZE * 0.16, CELL_SIZE * 0.13, CELL_SIZE * 0.08, CELL_SIZE * 0.065, 0, 0, Math.PI * 2);
+    ctx.ellipse(headWidth * 0.24, -headWidth * 0.18, headWidth * 0.13, headWidth * 0.1, 0, 0, Math.PI * 2);
+    ctx.ellipse(headWidth * 0.24, headWidth * 0.18, headWidth * 0.13, headWidth * 0.1, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#0e1b18";
+    ctx.fillStyle = "#18150f";
     ctx.beginPath();
-    ctx.arc(CELL_SIZE * 0.18, -CELL_SIZE * 0.13, CELL_SIZE * 0.032, 0, Math.PI * 2);
-    ctx.arc(CELL_SIZE * 0.18, CELL_SIZE * 0.13, CELL_SIZE * 0.032, 0, Math.PI * 2);
+    ctx.arc(headWidth * 0.28, -headWidth * 0.18, headWidth * 0.05, 0, Math.PI * 2);
+    ctx.arc(headWidth * 0.28, headWidth * 0.18, headWidth * 0.05, 0, Math.PI * 2);
     ctx.fill();
 
     // Mouth and teeth.
-    ctx.fillStyle = "#1c2322";
+    ctx.fillStyle = "#172221";
     ctx.beginPath();
-    ctx.ellipse(CELL_SIZE * 0.3, 0, CELL_SIZE * 0.1, CELL_SIZE * 0.08, 0, 0, Math.PI * 2);
+    ctx.ellipse(headWidth * 0.42, 0, headWidth * 0.18, headWidth * 0.13, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.moveTo(CELL_SIZE * 0.23, -CELL_SIZE * 0.03);
-    ctx.lineTo(CELL_SIZE * 0.27, 0);
-    ctx.lineTo(CELL_SIZE * 0.23, CELL_SIZE * 0.03);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(CELL_SIZE * 0.31, -CELL_SIZE * 0.03);
-    ctx.lineTo(CELL_SIZE * 0.35, 0);
-    ctx.lineTo(CELL_SIZE * 0.31, CELL_SIZE * 0.03);
-    ctx.fill();
+    for (let i = -2; i <= 2; i += 1) {
+      const toothY = i * headWidth * 0.06;
+      ctx.beginPath();
+      ctx.moveTo(headWidth * 0.38, toothY - headWidth * 0.02);
+      ctx.lineTo(headWidth * 0.44, toothY);
+      ctx.lineTo(headWidth * 0.38, toothY + headWidth * 0.02);
+      ctx.fill();
+    }
 
     ctx.restore();
 
-    // Tail tip for a clearer snake silhouette.
+    // Tapered tail that narrows down visibly.
     const tail = snake[snake.length - 1];
     const beforeTail = snake[snake.length - 2] || tail;
     const tailDir = {
@@ -585,11 +603,14 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     ctx.save();
     ctx.translate(tailX, tailY);
     ctx.rotate(tailAngle);
-    ctx.fillStyle = "#1b775b";
+    const tailGrad = ctx.createLinearGradient(-bodyWidth * 0.8, 0, bodyWidth * 0.4, 0);
+    tailGrad.addColorStop(0, "#3f7e43");
+    tailGrad.addColorStop(1, "#284f2b");
+    ctx.fillStyle = tailGrad;
     ctx.beginPath();
-    ctx.moveTo(-CELL_SIZE * 0.32, 0);
-    ctx.lineTo(CELL_SIZE * 0.15, -CELL_SIZE * 0.16);
-    ctx.lineTo(CELL_SIZE * 0.15, CELL_SIZE * 0.16);
+    ctx.moveTo(-bodyWidth * 0.9, 0);
+    ctx.lineTo(bodyWidth * 0.25, -bodyWidth * 0.2);
+    ctx.lineTo(bodyWidth * 0.25, bodyWidth * 0.2);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
