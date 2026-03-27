@@ -1867,12 +1867,13 @@ function clearSession() {
       const verifyUrl = `${window.location.origin}${window.location.pathname}?verifyEmail=${encodeURIComponent(email)}&verifyCode=${verificationCode}`;
       const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent("Midnight Arcade verification")}&body=${encodeURIComponent(`Use this verification code: ${verificationCode}\nOr open this link: ${verifyUrl}`)}`;
 
-      setStatus(createStatus, "Verification code sent. Enter it to activate your account.", "win");
+      window.location.href = mailtoUrl;
+      setStatus(createStatus, "Your email app has been opened with the verification code. Check your inbox and enter the code below.", "win");
       if (createLink) {
-        createLink.innerHTML = `Email send preview (static-site mode): <a href="${mailtoUrl}">Open email app</a> | <a href="${verifyUrl}">Verification link</a> | Code: <strong>${verificationCode}</strong>`;
+        createLink.innerHTML = `Didn't get it? <a href="${mailtoUrl}">Open email app again</a>`;
       }
       verifyEmail.value = email;
-      verifyCode.value = verificationCode;
+      verifyCode.value = "";
       showPanel("verify");
     });
   }
@@ -1969,15 +1970,16 @@ function clearSession() {
       const resetUrl = `${window.location.origin}${window.location.pathname}?resetEmail=${encodeURIComponent(email)}&resetCode=${resetCodeValue}`;
       const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent("Midnight Arcade password reset")}&body=${encodeURIComponent(`Use this reset code: ${resetCodeValue}\nOr open this reset link: ${resetUrl}`)}`;
 
-      setStatus(forgotStatus, "Reset link/code generated. Check your email.", "win");
+      window.location.href = mailtoUrl;
+      setStatus(forgotStatus, "Your email app has been opened with the reset code. Check your inbox and enter the code below.", "win");
       if (forgotLinkPreview) {
-        forgotLinkPreview.innerHTML = `Email send preview (static-site mode): <a href="${mailtoUrl}">Open email app</a> | <a href="${resetUrl}">Reset link</a> | Code: <strong>${resetCodeValue}</strong>`;
+        forgotLinkPreview.innerHTML = `Didn't get it? <a href="${mailtoUrl}">Open email app again</a>`;
       }
       if (resetEmail) {
         resetEmail.value = email;
       }
       if (resetCode) {
-        resetCode.value = resetCodeValue;
+        resetCode.value = "";
       }
     });
   }
