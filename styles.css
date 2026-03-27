@@ -1299,6 +1299,67 @@ select {
   accent-color: var(--accent);
 }
 
+.settings-actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.settings-action-btn {
+  width: 100%;
+}
+
+.danger-btn {
+  background: rgba(255, 111, 135, 0.14);
+  color: var(--text);
+  border: 1px solid rgba(255, 111, 135, 0.35);
+}
+
+.danger-btn:hover {
+  background: rgba(255, 111, 135, 0.22);
+  border-color: rgba(255, 111, 135, 0.55);
+}
+
+.is-disabled,
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+
+.settings-confirmation {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(5px);
+}
+
+.settings-confirmation.hidden {
+  display: none;
+}
+
+.settings-confirmation-card {
+  width: min(92%, 360px);
+  padding: 1.2rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(18, 28, 46, 0.98), rgba(11, 17, 30, 0.98));
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.45);
+}
+
+.settings-confirmation-card h3 {
+  margin: 0 0 0.6rem;
+}
+
+.settings-confirmation-card p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
 .volume-display {
   margin: 0.5rem 0 0;
   font-size: 0.8rem;

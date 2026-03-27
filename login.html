@@ -70,6 +70,24 @@
                 </label>
                 <p id="volume-display" class="volume-display">70%</p>
               </div>
+              <div class="settings-group">
+                <p class="settings-label">Account</p>
+                <div class="settings-actions">
+                  <button id="settings-auth-btn" class="settings-action-btn" type="button">Login</button>
+                  <button id="settings-delete-account-btn" class="settings-action-btn danger-btn" type="button">Delete Account</button>
+                </div>
+                <p id="settings-account-status" class="status-text">Not signed in.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="settings-delete-confirm" class="settings-confirmation hidden" role="dialog" aria-modal="true" aria-labelledby="settings-delete-title">
+          <div class="settings-confirmation-card">
+            <h3 id="settings-delete-title">Delete Account?</h3>
+            <p>This permanently removes your account from this browser.</p>
+            <div class="settings-actions">
+              <button id="settings-cancel-delete-btn" class="settings-action-btn ghost-btn" type="button">Cancel</button>
+              <button id="settings-confirm-delete-btn" class="settings-action-btn danger-btn" type="button">Yes, delete it</button>
             </div>
           </div>
         </div>

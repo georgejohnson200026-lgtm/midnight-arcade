@@ -1634,11 +1634,39 @@ function setSession(account) {
     email: account.email,
     updatedAt: Date.now(),
   });
+  window.dispatchEvent(new CustomEvent("ma-auth-changed"));
 }
 
 function clearSession() {
   localStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(MP_AUTH_KEY);
+  window.dispatchEvent(new CustomEvent("ma-auth-changed"));
+}
+
+function deleteCurrentAccount() {
+  const session = readSession();
+  if (!session || !session.email) {
+    return { ok: false, message: "You need to sign in before deleting your account." };
+  }
+
+  const email = normalizeEmail(session.email);
+  const accounts = readAccounts();
+  if (!accounts[email]) {
+    clearSession();
+    return { ok: false, message: "No saved account was found for this login." };
+  }
+
+  delete accounts[email];
+  saveAccounts(accounts);
+
+  const pending = readPendingSignups();
+  if (pending[email]) {
+    delete pending[email];
+    savePendingSignups(pending);
+  }
+
+  clearSession();
+  return { ok: true, message: "Your account has been deleted." };
 }
 
 // ── Sidebar Account Login/Logout ──────────────────────────────────────
@@ -1668,9 +1696,9 @@ function clearSession() {
 
   logoutBtn.addEventListener("click", () => {
     clearSession();
-    updateDisplay();
   });
 
+  window.addEventListener("ma-auth-changed", updateDisplay);
   updateDisplay();
 })();
 
@@ -1731,6 +1759,7 @@ function clearSession() {
     window.location.href = "login.html#create-account-form";
   });
 
+  window.addEventListener("ma-auth-changed", updateDisplay);
   updateDisplay();
 })();
 
@@ -1794,11 +1823,17 @@ function clearSession() {
   function updateLoginStatus() {
     const session = readSession();
     if (!session) {
+      if (logoutBtn) {
+        logoutBtn.classList.add("hidden");
+      }
       setStatus(loginStatus, "Not signed in.", "");
       return;
     }
     if (loginIdentifier) {
       loginIdentifier.value = session.email || session.username || "";
+    }
+    if (logoutBtn) {
+      logoutBtn.classList.remove("hidden");
     }
     setStatus(loginStatus, `Signed in as ${session.username}.`, "win");
   }
@@ -1948,6 +1983,8 @@ function clearSession() {
     });
   }
 
+  window.addEventListener("ma-auth-changed", updateLoginStatus);
+
   if (forgotRequestForm) {
     forgotRequestForm.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -2056,13 +2093,23 @@ function clearSession() {
   const lightModeToggle = document.getElementById("light-mode-toggle");
   const volumeSlider = document.getElementById("volume-slider");
   const volumeDisplay = document.getElementById("volume-display");
+  const settingsAuthBtn = document.getElementById("settings-auth-btn");
+  const settingsDeleteBtn = document.getElementById("settings-delete-account-btn");
+  const settingsAccountStatus = document.getElementById("settings-account-status");
+  const deleteConfirm = document.getElementById("settings-delete-confirm");
+  const cancelDeleteBtn = document.getElementById("settings-cancel-delete-btn");
+  const confirmDeleteBtn = document.getElementById("settings-confirm-delete-btn");
 
   if (!settingsBtn || !settingsPanel || !settingsClose || !lightModeToggle || !volumeSlider) return;
 
   const PREFS_KEY = "app-prefs";
 
   function readPrefs() {
-    try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}"); } catch (e) { return {}; }
+    try {
+      return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
+    } catch (e) {
+      return {};
+    }
   }
 
   function savePrefs(prefs) {
@@ -2075,6 +2122,34 @@ function clearSession() {
 
   function applyVolume(vol) {
     document.documentElement.style.setProperty("--master-volume", vol / 100);
+  }
+
+  function setAccountStatus(message, cssClass) {
+    if (!settingsAccountStatus) return;
+    settingsAccountStatus.textContent = message;
+    settingsAccountStatus.className = `status-text ${cssClass || ""}`.trim();
+  }
+
+  function updateAccountActions() {
+    const session = readSession();
+    if (settingsAuthBtn) {
+      settingsAuthBtn.textContent = session ? "Logout" : "Login";
+    }
+    if (settingsDeleteBtn) {
+      settingsDeleteBtn.disabled = !session;
+      settingsDeleteBtn.classList.toggle("is-disabled", !session);
+    }
+    if (session && session.username) {
+      setAccountStatus(`Signed in as ${session.username}.`, "win");
+      return;
+    }
+    setAccountStatus("Not signed in.", "");
+  }
+
+  function hideDeleteConfirm() {
+    if (deleteConfirm) {
+      deleteConfirm.classList.add("hidden");
+    }
   }
 
   function loadPreferences() {
@@ -2092,13 +2167,23 @@ function clearSession() {
 
   settingsClose.addEventListener("click", () => {
     settingsPanel.classList.add("hidden");
+    hideDeleteConfirm();
   });
 
   settingsPanel.addEventListener("click", (e) => {
     if (e.target === settingsPanel) {
       settingsPanel.classList.add("hidden");
+      hideDeleteConfirm();
     }
   });
+
+  if (deleteConfirm) {
+    deleteConfirm.addEventListener("click", (event) => {
+      if (event.target === deleteConfirm) {
+        hideDeleteConfirm();
+      }
+    });
+  }
 
   lightModeToggle.addEventListener("change", () => {
     const prefs = readPrefs();
@@ -2111,10 +2196,49 @@ function clearSession() {
     const vol = volumeSlider.value;
     volumeDisplay.textContent = vol + "%";
     const prefs = readPrefs();
-    prefs.volume = parseInt(vol);
+    prefs.volume = parseInt(vol, 10);
     savePrefs(prefs);
     applyVolume(vol);
   });
 
+  if (settingsAuthBtn) {
+    settingsAuthBtn.addEventListener("click", () => {
+      if (readSession()) {
+        clearSession();
+        setAccountStatus("Logged out.", "");
+        hideDeleteConfirm();
+        return;
+      }
+      window.location.href = "login.html";
+    });
+  }
+
+  if (settingsDeleteBtn) {
+    settingsDeleteBtn.addEventListener("click", () => {
+      if (!readSession()) {
+        setAccountStatus("Sign in before deleting your account.", "lose");
+        return;
+      }
+      if (deleteConfirm) {
+        deleteConfirm.classList.remove("hidden");
+      }
+    });
+  }
+
+  if (cancelDeleteBtn) {
+    cancelDeleteBtn.addEventListener("click", hideDeleteConfirm);
+  }
+
+  if (confirmDeleteBtn) {
+    confirmDeleteBtn.addEventListener("click", () => {
+      const result = deleteCurrentAccount();
+      hideDeleteConfirm();
+      setAccountStatus(result.message, result.ok ? "win" : "lose");
+    });
+  }
+
+  window.addEventListener("ma-auth-changed", updateAccountActions);
+
   loadPreferences();
+  updateAccountActions();
 })();
