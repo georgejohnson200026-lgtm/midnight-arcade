@@ -104,6 +104,29 @@
           <section class="game-card chess-card" id="chess-game">
             <h2>Chess</h2>
             <p class="game-description">Two-player local chess with legal move validation and check/checkmate logic.</p>
+            <div class="chess-mode-panel">
+              <label for="chess-mode-select">Mode</label>
+              <select id="chess-mode-select">
+                <option value="local">Local 2 Player</option>
+                <option value="computer">Vs Computer</option>
+                <option value="link">Link Multiplayer</option>
+                <option value="puzzle">Chess Puzzles</option>
+              </select>
+              <label for="chess-ai-level">AI Difficulty</label>
+              <select id="chess-ai-level">
+                <option value="easy">Easy</option>
+                <option value="medium" selected>Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+              <div id="chess-link-controls" class="chess-link-actions">
+                <button id="chess-create-link-btn" class="ghost-btn" type="button">Create Invite Link</button>
+                <button id="chess-copy-link-btn" class="ghost-btn" type="button">Copy Link</button>
+              </div>
+              <input id="chess-link-input" type="text" readonly placeholder="Invite link appears here" />
+              <div id="chess-puzzle-controls" class="chess-link-actions">
+                <button id="chess-puzzle-next-btn" class="ghost-btn" type="button">Next Puzzle</button>
+              </div>
+            </div>
             <div class="chess-hud">
               <p id="chess-turn" class="meta-text">Turn: White</p>
               <div class="chess-controls">

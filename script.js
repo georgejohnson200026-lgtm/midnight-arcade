@@ -332,8 +332,17 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   const turnEl = document.getElementById("chess-turn");
   const newBtn = document.getElementById("chess-new-btn");
   const flipBtn = document.getElementById("chess-flip-btn");
+  const modeSelect = document.getElementById("chess-mode-select");
+  const aiLevelSelect = document.getElementById("chess-ai-level");
+  const aiLevelLabel = document.querySelector('label[for="chess-ai-level"]');
+  const createLinkBtn = document.getElementById("chess-create-link-btn");
+  const copyLinkBtn = document.getElementById("chess-copy-link-btn");
+  const linkInput = document.getElementById("chess-link-input");
+  const linkControls = document.getElementById("chess-link-controls");
+  const puzzleControls = document.getElementById("chess-puzzle-controls");
+  const puzzleNextBtn = document.getElementById("chess-puzzle-next-btn");
 
-  if (!boardEl || !statusEl || !turnEl || !newBtn || !flipBtn) {
+  if (!boardEl || !statusEl || !turnEl || !newBtn || !flipBtn || !modeSelect || !aiLevelSelect) {
     return;
   }
 
@@ -374,10 +383,46 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     [1, 1],
   ];
 
+  const pieceValues = {
+    P: 100,
+    N: 320,
+    B: 330,
+    R: 500,
+    Q: 900,
+    K: 20000,
+  };
+
+  const chessPuzzles = [
+    {
+      title: "Win the Queen",
+      prompt: "White to move. Find the move that wins the queen.",
+      fen: "4k3/8/8/8/4q3/8/4Q3/4K3 w - - 0 1",
+      solution: "e2e4",
+    },
+    {
+      title: "Castle to Safety",
+      prompt: "White to move. Play the king-side castling move.",
+      fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+      solution: "e1g1",
+    },
+    {
+      title: "Rook Lift",
+      prompt: "White to move. Find the precise rook move.",
+      fen: "6k1/5ppp/8/8/8/8/5PPP/5RK1 w - - 0 1",
+      solution: "f1e1",
+    },
+  ];
+
   let gameState = null;
   let selected = null;
   let legalMoves = [];
   let flipped = false;
+  let currentMode = "local";
+  let aiLevel = aiLevelSelect.value || "medium";
+  let aiColor = "b";
+  let aiTimer = null;
+  let puzzleIndex = 0;
+  let currentPuzzle = null;
 
   function createInitialBoard() {
     return [
@@ -400,6 +445,105 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       enPassant: null,
       gameOver: false,
     };
+  }
+
+  function parseSquare(square) {
+    if (!square || square === "-") {
+      return null;
+    }
+    const file = square.charCodeAt(0) - 97;
+    const rank = Number(square[1]);
+    if (file < 0 || file > 7 || rank < 1 || rank > 8) {
+      return null;
+    }
+    return { r: 8 - rank, c: file };
+  }
+
+  function toSquare(r, c) {
+    return `${String.fromCharCode(97 + c)}${8 - r}`;
+  }
+
+  function parseFen(fen) {
+    const parts = String(fen || "").trim().split(/\s+/);
+    if (parts.length < 4) {
+      return null;
+    }
+
+    const rows = parts[0].split("/");
+    if (rows.length !== 8) {
+      return null;
+    }
+
+    const board = [];
+    for (const rowText of rows) {
+      const row = [];
+      for (const char of rowText) {
+        if (/\d/.test(char)) {
+          const empties = Number(char);
+          for (let i = 0; i < empties; i += 1) {
+            row.push(null);
+          }
+        } else {
+          const color = char === char.toUpperCase() ? "w" : "b";
+          const type = char.toUpperCase();
+          if (!pieceValues[type]) {
+            return null;
+          }
+          row.push(`${color}${type}`);
+        }
+      }
+      if (row.length !== 8) {
+        return null;
+      }
+      board.push(row);
+    }
+
+    const castlingText = parts[2] || "-";
+    const castling = {
+      wK: castlingText.includes("K"),
+      wQ: castlingText.includes("Q"),
+      bK: castlingText.includes("k"),
+      bQ: castlingText.includes("q"),
+    };
+
+    return {
+      board,
+      turn: parts[1] === "b" ? "b" : "w",
+      castling,
+      enPassant: parseSquare(parts[3]),
+      gameOver: false,
+    };
+  }
+
+  function boardToFen(board) {
+    return board
+      .map((row) => {
+        let text = "";
+        let emptyCount = 0;
+        for (const piece of row) {
+          if (!piece) {
+            emptyCount += 1;
+            continue;
+          }
+          if (emptyCount > 0) {
+            text += String(emptyCount);
+            emptyCount = 0;
+          }
+          const char = typeOf(piece);
+          text += colorOf(piece) === "w" ? char : char.toLowerCase();
+        }
+        if (emptyCount > 0) {
+          text += String(emptyCount);
+        }
+        return text;
+      })
+      .join("/");
+  }
+
+  function stateToFen(state) {
+    const castlingText = `${state.castling.wK ? "K" : ""}${state.castling.wQ ? "Q" : ""}${state.castling.bK ? "k" : ""}${state.castling.bQ ? "q" : ""}` || "-";
+    const enPassantText = state.enPassant ? toSquare(state.enPassant.r, state.enPassant.c) : "-";
+    return `${boardToFen(state.board)} ${state.turn} ${castlingText} ${enPassantText} 0 1`;
   }
 
   function cloneState(state) {
@@ -435,6 +579,10 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
   function setTurnLabel() {
     turnEl.textContent = `Turn: ${gameState.turn === "w" ? "White" : "Black"}`;
+  }
+
+  function moveKey(move) {
+    return `${toSquare(move.fromR, move.fromC)}${toSquare(move.toR, move.toC)}`;
   }
 
   function findKing(board, color) {
@@ -743,18 +891,102 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     return moves;
   }
 
+  function evaluateState(state) {
+    const legal = getAllLegalMoves(state, state.turn);
+    const inCheck = isKingInCheck(state, state.turn);
+    if (legal.length === 0 && inCheck) {
+      return state.turn === "w" ? -999999 : 999999;
+    }
+    if (legal.length === 0 && !inCheck) {
+      return 0;
+    }
+
+    let score = 0;
+    for (let r = 0; r < 8; r += 1) {
+      for (let c = 0; c < 8; c += 1) {
+        const piece = state.board[r][c];
+        if (!piece) continue;
+        const value = pieceValues[typeOf(piece)] || 0;
+        score += colorOf(piece) === "w" ? value : -value;
+      }
+    }
+    return score;
+  }
+
+  function searchMoveScore(state, depth, alpha, beta) {
+    if (depth === 0) {
+      return evaluateState(state);
+    }
+
+    const moves = getAllLegalMoves(state, state.turn);
+    if (!moves.length) {
+      return evaluateState(state);
+    }
+
+    if (state.turn === "w") {
+      let best = -Infinity;
+      for (const move of moves) {
+        const next = cloneState(state);
+        applyMoveToState(next, move, "Q");
+        const score = searchMoveScore(next, depth - 1, alpha, beta);
+        if (score > best) {
+          best = score;
+        }
+        alpha = Math.max(alpha, best);
+        if (beta <= alpha) {
+          break;
+        }
+      }
+      return best;
+    }
+
+    let best = Infinity;
+    for (const move of moves) {
+      const next = cloneState(state);
+      applyMoveToState(next, move, "Q");
+      const score = searchMoveScore(next, depth - 1, alpha, beta);
+      if (score < best) {
+        best = score;
+      }
+      beta = Math.min(beta, best);
+      if (beta <= alpha) {
+        break;
+      }
+    }
+    return best;
+  }
+
+  function chooseComputerMove(state, level) {
+    const moves = getAllLegalMoves(state, aiColor);
+    if (!moves.length) return null;
+
+    if (level === "easy") {
+      return moves[Math.floor(Math.random() * moves.length)];
+    }
+
+    const depth = level === "hard" ? 2 : 1;
+    let scored = moves.map((move) => {
+      const next = cloneState(state);
+      applyMoveToState(next, move, "Q");
+      const score = searchMoveScore(next, depth, -Infinity, Infinity);
+      return { move, score };
+    });
+
+    scored.sort((a, b) => (aiColor === "w" ? b.score - a.score : a.score - b.score));
+
+    if (level === "medium") {
+      const top = scored.slice(0, Math.min(3, scored.length));
+      return top[Math.floor(Math.random() * top.length)].move;
+    }
+
+    return scored[0].move;
+  }
+
   function toBoardCoords(displayRow, displayCol) {
     if (!flipped) {
       return { r: displayRow, c: displayCol };
     }
     return { r: 7 - displayRow, c: 7 - displayCol };
-  }
-
-  function toDisplayCoords(boardRow, boardCol) {
-    if (!flipped) {
-      return { r: boardRow, c: boardCol };
-    }
-    return { r: 7 - boardRow, c: 7 - boardCol };
   }
 
   function squareHasLegalMove(r, c) {
@@ -813,6 +1045,93 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     return "Q";
   }
 
+  function updateInviteLink() {
+    if (!linkInput || currentMode !== "link") return;
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("mode", "link");
+    nextUrl.searchParams.set("fen", stateToFen(gameState));
+    linkInput.value = nextUrl.toString();
+  }
+
+  function updateModeUI() {
+    const isComputer = currentMode === "computer";
+    const isLink = currentMode === "link";
+    const isPuzzle = currentMode === "puzzle";
+
+    if (aiLevelSelect) {
+      aiLevelSelect.classList.toggle("hidden", !isComputer);
+      aiLevelSelect.disabled = !isComputer;
+    }
+    if (aiLevelLabel) {
+      aiLevelLabel.classList.toggle("hidden", !isComputer);
+    }
+    if (linkControls) {
+      linkControls.classList.toggle("hidden", !isLink);
+    }
+    if (linkInput) {
+      linkInput.classList.toggle("hidden", !isLink);
+    }
+    if (puzzleControls) {
+      puzzleControls.classList.toggle("hidden", !isPuzzle);
+    }
+  }
+
+  function stopComputerTimer() {
+    if (aiTimer) {
+      clearTimeout(aiTimer);
+      aiTimer = null;
+    }
+  }
+
+  function scheduleComputerMove() {
+    if (currentMode !== "computer" || gameState.gameOver || gameState.turn !== aiColor) {
+      return;
+    }
+
+    stopComputerTimer();
+    setStatus("Computer is thinking...");
+    aiTimer = setTimeout(() => {
+      const aiMove = chooseComputerMove(gameState, aiLevel);
+      if (!aiMove) {
+        updateGameOutcome();
+        return;
+      }
+      performMove(aiMove, { isComputer: true, promotionChoice: "Q" });
+    }, aiLevel === "hard" ? 450 : 300);
+  }
+
+  function loadPuzzle(index) {
+    puzzleIndex = ((index % chessPuzzles.length) + chessPuzzles.length) % chessPuzzles.length;
+    currentPuzzle = chessPuzzles[puzzleIndex];
+    const parsed = parseFen(currentPuzzle.fen);
+    if (!parsed) {
+      return;
+    }
+    gameState = parsed;
+    selected = null;
+    legalMoves = [];
+    setTurnLabel();
+    setStatus(`Puzzle: ${currentPuzzle.prompt}`);
+    renderBoard();
+  }
+
+  function updateFromUrlIfPresent() {
+    const params = new URLSearchParams(window.location.search);
+    const requestedMode = params.get("mode");
+    if (["local", "computer", "link", "puzzle"].includes(requestedMode)) {
+      currentMode = requestedMode;
+      modeSelect.value = requestedMode;
+    }
+
+    if (currentMode === "link") {
+      const fen = params.get("fen");
+      const parsed = fen ? parseFen(fen) : null;
+      if (parsed) {
+        gameState = parsed;
+      }
+    }
+  }
+
   function updateGameOutcome() {
     const color = gameState.turn;
     const allMoves = getAllLegalMoves(gameState, color);
@@ -838,7 +1157,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     setStatus(`${color === "w" ? "White" : "Black"} to move.`);
   }
 
-  function performMove(move) {
+  function performMove(move, options = {}) {
     if (gameState.gameOver) {
       return;
     }
@@ -848,14 +1167,41 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       return;
     }
 
-    const promotionChoice = move.promotion ? askPromotionChoice() : "Q";
+    if (currentMode === "puzzle" && !options.isComputer && currentPuzzle) {
+      const expected = currentPuzzle.solution.toLowerCase();
+      if (moveKey(move).toLowerCase() !== expected) {
+        setStatus("Not the puzzle move. Try again.", "lose");
+        selected = null;
+        legalMoves = [];
+        renderBoard();
+        return;
+      }
+    }
+
+    const promotionChoice = options.promotionChoice || (move.promotion ? askPromotionChoice() : "Q");
     applyMoveToState(gameState, move, promotionChoice);
 
     selected = null;
     legalMoves = [];
     setTurnLabel();
-    updateGameOutcome();
+
+    if (currentMode === "puzzle" && currentPuzzle && !options.isComputer) {
+      gameState.gameOver = true;
+      setStatus("Correct move. Puzzle solved!", "win");
+    } else {
+      updateGameOutcome();
+    }
+
     renderBoard();
+
+    if (currentMode === "link") {
+      updateInviteLink();
+      if (!gameState.gameOver) {
+        setStatus("Move made. Copy and send the updated invite link to your opponent.", "win");
+      }
+    }
+
+    scheduleComputerMove();
   }
 
   function handleSquareClick(r, c) {
@@ -886,12 +1232,31 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   }
 
   function resetGame() {
+    stopComputerTimer();
+
+    if (currentMode === "puzzle") {
+      loadPuzzle(puzzleIndex);
+      return;
+    }
+
     gameState = createInitialState();
     selected = null;
     legalMoves = [];
     setTurnLabel();
-    setStatus("White to move.");
+    if (currentMode === "computer") {
+      setStatus("White vs computer. White to move.");
+    } else if (currentMode === "link") {
+      setStatus("Link multiplayer ready. Make a move, then share the generated link.");
+    } else {
+      setStatus("White to move.");
+    }
     renderBoard();
+
+    if (currentMode === "link") {
+      updateInviteLink();
+    }
+
+    scheduleComputerMove();
   }
 
   newBtn.addEventListener("click", () => {
@@ -903,7 +1268,69 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     renderBoard();
   });
 
-  resetGame();
+  modeSelect.addEventListener("change", () => {
+    currentMode = modeSelect.value;
+    updateModeUI();
+    resetGame();
+  });
+
+  aiLevelSelect.addEventListener("change", () => {
+    aiLevel = aiLevelSelect.value;
+    if (currentMode === "computer") {
+      scheduleComputerMove();
+    }
+  });
+
+  if (createLinkBtn) {
+    createLinkBtn.addEventListener("click", () => {
+      if (currentMode !== "link") {
+        setStatus("Switch to Link Multiplayer mode first.", "lose");
+        return;
+      }
+      updateInviteLink();
+      setStatus("Invite link generated. Send it to your opponent.", "win");
+    });
+  }
+
+  if (copyLinkBtn) {
+    copyLinkBtn.addEventListener("click", async () => {
+      if (!linkInput || !linkInput.value) {
+        setStatus("Create an invite link first.", "lose");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(linkInput.value);
+        setStatus("Invite link copied.", "win");
+      } catch (error) {
+        setStatus("Copy failed. Select and copy the link manually.", "lose");
+      }
+    });
+  }
+
+  if (puzzleNextBtn) {
+    puzzleNextBtn.addEventListener("click", () => {
+      if (currentMode !== "puzzle") {
+        setStatus("Switch to Chess Puzzles mode first.", "lose");
+        return;
+      }
+      loadPuzzle(puzzleIndex + 1);
+    });
+  }
+
+  updateFromUrlIfPresent();
+  updateModeUI();
+  if (currentMode === "link" && gameState) {
+    selected = null;
+    legalMoves = [];
+    setTurnLabel();
+    setStatus("Invite position loaded. Continue the game and share the updated link each turn.", "win");
+    renderBoard();
+    updateInviteLink();
+  } else if (currentMode === "puzzle") {
+    loadPuzzle(puzzleIndex);
+  } else {
+    resetGame();
+  }
 })();
 
 // ── Snake ──────────────────────────────────────────────────────────────
