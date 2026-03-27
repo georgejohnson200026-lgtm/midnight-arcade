@@ -341,6 +341,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   const linkControls = document.getElementById("chess-link-controls");
   const puzzleControls = document.getElementById("chess-puzzle-controls");
   const puzzleNextBtn = document.getElementById("chess-puzzle-next-btn");
+  const puzzleAnswerBtn = document.getElementById("chess-puzzle-answer-btn");
 
   if (!boardEl || !statusEl || !turnEl || !newBtn || !flipBtn || !modeSelect || !aiLevelSelect) {
     return;
@@ -394,22 +395,22 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
   const chessPuzzles = [
     {
+      title: "Mate in One",
+      prompt: "White to move. Checkmate in one move.",
+      fen: "6k1/8/6KQ/8/8/8/8/8 w - - 0 1",
+      solution: "h6g7",
+    },
+    {
+      title: "Back Rank Mate",
+      prompt: "White to move. Deliver a back-rank checkmate.",
+      fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+      solution: "e1e8",
+    },
+    {
       title: "Win the Queen",
-      prompt: "White to move. Find the move that wins the queen.",
+      prompt: "White to move. Win the opponent queen in one move.",
       fen: "4k3/8/8/8/4q3/8/4Q3/4K3 w - - 0 1",
       solution: "e2e4",
-    },
-    {
-      title: "Castle to Safety",
-      prompt: "White to move. Play the king-side castling move.",
-      fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
-      solution: "e1g1",
-    },
-    {
-      title: "Rook Lift",
-      prompt: "White to move. Find the precise rook move.",
-      fen: "6k1/5ppp/8/8/8/8/5PPP/5RK1 w - - 0 1",
-      solution: "f1e1",
     },
   ];
 
@@ -423,6 +424,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   let aiTimer = null;
   let puzzleIndex = 0;
   let currentPuzzle = null;
+  let puzzleAnswerHint = null;
   let chessPeer = null;
   let chessConn = null;
   let liveRoomId = null;
@@ -1001,6 +1003,24 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     return legalMoves.some((move) => move.toR === r && move.toC === c);
   }
 
+  function parseUciMove(moveText) {
+    const text = String(moveText || "").trim().toLowerCase();
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(text)) {
+      return null;
+    }
+    const fromFile = text.charCodeAt(0) - 97;
+    const fromRank = Number(text[1]);
+    const toFile = text.charCodeAt(2) - 97;
+    const toRank = Number(text[3]);
+    return {
+      fromR: 8 - fromRank,
+      fromC: fromFile,
+      toR: 8 - toRank,
+      toC: toFile,
+      promotionChoice: text[4] ? text[4].toUpperCase() : "Q",
+    };
+  }
+
   function renderBoard() {
     boardEl.innerHTML = "";
     for (let dr = 0; dr < 8; dr += 1) {
@@ -1012,6 +1032,12 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
         square.className = `chess-square ${(r + c) % 2 === 0 ? "light" : "dark"}`;
         if (selected && selected.r === r && selected.c === c) {
           square.classList.add("selected");
+        }
+        if (puzzleAnswerHint && puzzleAnswerHint.fromR === r && puzzleAnswerHint.fromC === c) {
+          square.classList.add("answer-from");
+        }
+        if (puzzleAnswerHint && puzzleAnswerHint.toR === r && puzzleAnswerHint.toC === c) {
+          square.classList.add("answer-to");
         }
         if (squareHasLegalMove(r, c)) {
           square.classList.add("legal");
@@ -1363,6 +1389,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     resetLiveSession();
     puzzleIndex = ((index % chessPuzzles.length) + chessPuzzles.length) % chessPuzzles.length;
     currentPuzzle = chessPuzzles[puzzleIndex];
+    puzzleAnswerHint = null;
     const parsed = parseFen(currentPuzzle.fen);
     if (!parsed) {
       return;
@@ -1438,6 +1465,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     }
 
     const promotionChoice = options.promotionChoice || (move.promotion ? askPromotionChoice() : "Q");
+    puzzleAnswerHint = null;
     applyMoveToState(gameState, move, promotionChoice);
 
     selected = null;
@@ -1615,6 +1643,23 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
         return;
       }
       loadPuzzle(puzzleIndex + 1);
+    });
+  }
+
+  if (puzzleAnswerBtn) {
+    puzzleAnswerBtn.addEventListener("click", () => {
+      if (currentMode !== "puzzle" || !currentPuzzle) {
+        setStatus("Switch to Chess Puzzles mode first.", "lose");
+        return;
+      }
+      const hint = parseUciMove(currentPuzzle.solution);
+      if (!hint) {
+        setStatus("Puzzle answer is unavailable for this position.", "lose");
+        return;
+      }
+      puzzleAnswerHint = hint;
+      renderBoard();
+      setStatus(`Answer shown: ${currentPuzzle.solution.toUpperCase()} (blue to gold).`, "win");
     });
   }
 
