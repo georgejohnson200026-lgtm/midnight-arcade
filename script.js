@@ -372,11 +372,76 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     food = candidate;
   }
 
+  function directionToAngle(dir) {
+    if (dir.x === 1) return 0;
+    if (dir.x === -1) return Math.PI;
+    if (dir.y === -1) return -Math.PI / 2;
+    return Math.PI / 2;
+  }
+
+  function drawSegmentCell(segment, index) {
+    const inset = 2;
+    const px = segment.x * CELL_SIZE + inset;
+    const py = segment.y * CELL_SIZE + inset;
+    const size = CELL_SIZE - inset * 2;
+    const radius = Math.max(3, size * 0.24);
+
+    const skin = ctx.createLinearGradient(px, py, px + size, py + size);
+    if (index === 0) {
+      skin.addColorStop(0, "#89ffd2");
+      skin.addColorStop(0.55, "#35c997");
+      skin.addColorStop(1, "#1b7f62");
+    } else {
+      skin.addColorStop(0, "#7de8bf");
+      skin.addColorStop(0.6, "#31b98a");
+      skin.addColorStop(1, "#176f56");
+    }
+
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(px, py, size, size, radius);
+    } else {
+      ctx.rect(px, py, size, size);
+    }
+    ctx.fillStyle = skin;
+    ctx.fill();
+
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(px, py, size, size, radius);
+    } else {
+      ctx.rect(px, py, size, size);
+    }
+    ctx.strokeStyle = "rgba(6, 44, 34, 0.6)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Subtle highlight for rounded, 3D body feel.
+    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(px + 2, py + 2, size * 0.55, Math.max(3, size * 0.2), Math.max(2, radius * 0.6));
+    } else {
+      ctx.rect(px + 2, py + 2, size * 0.55, Math.max(3, size * 0.2));
+    }
+    ctx.fill();
+  }
+
   function drawGrid() {
-    ctx.fillStyle = "#0a1120";
+    const bg = ctx.createRadialGradient(
+      snakeCanvas.width * 0.3,
+      snakeCanvas.height * 0.25,
+      24,
+      snakeCanvas.width * 0.5,
+      snakeCanvas.height * 0.5,
+      snakeCanvas.width * 0.75
+    );
+    bg.addColorStop(0, "#14233a");
+    bg.addColorStop(1, "#060c16");
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, snakeCanvas.width, snakeCanvas.height);
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.strokeStyle = "rgba(140, 170, 210, 0.13)";
     ctx.lineWidth = 1;
     for (let i = 0; i <= GRID_SIZE; i += 1) {
       const offset = i * CELL_SIZE;
@@ -395,17 +460,139 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   function drawFood() {
     const centerX = food.x * CELL_SIZE + CELL_SIZE / 2;
     const centerY = food.y * CELL_SIZE + CELL_SIZE / 2;
-    ctx.fillStyle = "#ff6f87";
+
+    // Ground shadow to anchor the apple on the board.
+    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
     ctx.beginPath();
-    ctx.arc(centerX, centerY, CELL_SIZE * 0.34, 0, Math.PI * 2);
+    ctx.ellipse(centerX, centerY + CELL_SIZE * 0.28, CELL_SIZE * 0.28, CELL_SIZE * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const appleGradient = ctx.createRadialGradient(
+      centerX - CELL_SIZE * 0.12,
+      centerY - CELL_SIZE * 0.16,
+      CELL_SIZE * 0.09,
+      centerX,
+      centerY,
+      CELL_SIZE * 0.42
+    );
+    appleGradient.addColorStop(0, "#ffd8d8");
+    appleGradient.addColorStop(0.35, "#ff6a63");
+    appleGradient.addColorStop(1, "#991c1c");
+
+    ctx.fillStyle = appleGradient;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, CELL_SIZE * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Apple top dimple.
+    ctx.fillStyle = "rgba(70, 10, 10, 0.35)";
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY - CELL_SIZE * 0.22, CELL_SIZE * 0.09, CELL_SIZE * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Stem.
+    ctx.strokeStyle = "#5f3a1d";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(centerX - CELL_SIZE * 0.02, centerY - CELL_SIZE * 0.22);
+    ctx.lineTo(centerX + CELL_SIZE * 0.06, centerY - CELL_SIZE * 0.42);
+    ctx.stroke();
+
+    // Leaf.
+    ctx.fillStyle = "#64c66d";
+    ctx.beginPath();
+    ctx.ellipse(centerX + CELL_SIZE * 0.16, centerY - CELL_SIZE * 0.34, CELL_SIZE * 0.1, CELL_SIZE * 0.05, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Gloss highlight.
+    ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+    ctx.beginPath();
+    ctx.ellipse(centerX - CELL_SIZE * 0.12, centerY - CELL_SIZE * 0.14, CELL_SIZE * 0.08, CELL_SIZE * 0.05, -0.45, 0, Math.PI * 2);
     ctx.fill();
   }
 
   function drawSnake() {
     snake.forEach((segment, index) => {
-      ctx.fillStyle = index === 0 ? "#42e8b4" : "#b9ffe6";
-      ctx.fillRect(segment.x * CELL_SIZE + 1, segment.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+      drawSegmentCell(segment, index);
     });
+
+    const head = snake[0];
+    if (!head) return;
+
+    const angle = directionToAngle(direction);
+    const centerX = head.x * CELL_SIZE + CELL_SIZE / 2;
+    const centerY = head.y * CELL_SIZE + CELL_SIZE / 2;
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(angle);
+
+    // Head bulge.
+    const headSkin = ctx.createLinearGradient(-CELL_SIZE * 0.35, -CELL_SIZE * 0.3, CELL_SIZE * 0.32, CELL_SIZE * 0.28);
+    headSkin.addColorStop(0, "#98ffd7");
+    headSkin.addColorStop(0.55, "#38cd9a");
+    headSkin.addColorStop(1, "#1b8062");
+    ctx.fillStyle = headSkin;
+    ctx.beginPath();
+    ctx.ellipse(CELL_SIZE * 0.03, 0, CELL_SIZE * 0.42, CELL_SIZE * 0.34, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes.
+    ctx.fillStyle = "#f5fff9";
+    ctx.beginPath();
+    ctx.ellipse(CELL_SIZE * 0.16, -CELL_SIZE * 0.13, CELL_SIZE * 0.08, CELL_SIZE * 0.065, 0, 0, Math.PI * 2);
+    ctx.ellipse(CELL_SIZE * 0.16, CELL_SIZE * 0.13, CELL_SIZE * 0.08, CELL_SIZE * 0.065, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#0e1b18";
+    ctx.beginPath();
+    ctx.arc(CELL_SIZE * 0.18, -CELL_SIZE * 0.13, CELL_SIZE * 0.032, 0, Math.PI * 2);
+    ctx.arc(CELL_SIZE * 0.18, CELL_SIZE * 0.13, CELL_SIZE * 0.032, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mouth and teeth.
+    ctx.fillStyle = "#1c2322";
+    ctx.beginPath();
+    ctx.ellipse(CELL_SIZE * 0.3, 0, CELL_SIZE * 0.1, CELL_SIZE * 0.08, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(CELL_SIZE * 0.23, -CELL_SIZE * 0.03);
+    ctx.lineTo(CELL_SIZE * 0.27, 0);
+    ctx.lineTo(CELL_SIZE * 0.23, CELL_SIZE * 0.03);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(CELL_SIZE * 0.31, -CELL_SIZE * 0.03);
+    ctx.lineTo(CELL_SIZE * 0.35, 0);
+    ctx.lineTo(CELL_SIZE * 0.31, CELL_SIZE * 0.03);
+    ctx.fill();
+
+    ctx.restore();
+
+    // Tail tip for a clearer snake silhouette.
+    const tail = snake[snake.length - 1];
+    const beforeTail = snake[snake.length - 2] || tail;
+    const tailDir = {
+      x: tail.x - beforeTail.x,
+      y: tail.y - beforeTail.y,
+    };
+    const tailAngle = directionToAngle(tailDir.x === 0 && tailDir.y === 0 ? direction : tailDir);
+    const tailX = tail.x * CELL_SIZE + CELL_SIZE / 2;
+    const tailY = tail.y * CELL_SIZE + CELL_SIZE / 2;
+
+    ctx.save();
+    ctx.translate(tailX, tailY);
+    ctx.rotate(tailAngle);
+    ctx.fillStyle = "#1b775b";
+    ctx.beginPath();
+    ctx.moveTo(-CELL_SIZE * 0.32, 0);
+    ctx.lineTo(CELL_SIZE * 0.15, -CELL_SIZE * 0.16);
+    ctx.lineTo(CELL_SIZE * 0.15, CELL_SIZE * 0.16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   function renderSnake() {
