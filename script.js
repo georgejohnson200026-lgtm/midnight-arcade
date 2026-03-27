@@ -25,6 +25,11 @@ const gameRoutes = [
     aliases: ["rock paper scissors", "rps", "rock paper", "scissors"],
   },
   {
+    path: "snake.html",
+    title: "Snake",
+    aliases: ["snake", "snake game", "apples"],
+  },
+  {
     path: "tic-tac-toe.html",
     title: "Tic-Tac-Toe",
     aliases: ["tic tac toe", "tictactoe", "tic tac", "xo"],
@@ -53,6 +58,12 @@ const favoriteGameCatalog = {
     title: "Rock Paper Scissors",
     tag: "Quick Match",
     description: "Challenge the CPU in a fast reaction round.",
+  },
+  "snake.html": {
+    path: "snake.html",
+    title: "Snake",
+    tag: "Arcade",
+    description: "Eat apples, grow longer, and survive as speed ramps up.",
   },
   "tic-tac-toe.html": {
     path: "tic-tac-toe.html",
@@ -106,7 +117,7 @@ if (sidebarSearchInput) {
     const route = resolveGameRoute(sidebarSearchInput.value);
 
     if (!route) {
-      sidebarSearchInput.setCustomValidity("Game not found. Try Number Guess, Hangman, Crazy Taxi, Tic-Tac-Toe, or Rock Paper Scissors.");
+      sidebarSearchInput.setCustomValidity("Game not found. Try Snake, Number Guess, Hangman, Crazy Taxi, Tic-Tac-Toe, or Rock Paper Scissors.");
       sidebarSearchInput.reportValidity();
       return;
     }
@@ -302,6 +313,234 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     updateTicFeedback("X starts.");
   });
 }
+
+// ── Snake ──────────────────────────────────────────────────────────────
+(function initSnakeGame() {
+  const snakeCanvas = document.getElementById("snake-canvas");
+  const snakeScore = document.getElementById("snake-score");
+  const snakeStatus = document.getElementById("snake-status");
+  const snakeStartBtn = document.getElementById("snake-start-btn");
+  const snakeResetBtn = document.getElementById("snake-reset-btn");
+
+  if (!snakeCanvas || !snakeScore || !snakeStatus || !snakeStartBtn || !snakeResetBtn) {
+    return;
+  }
+
+  const ctx = snakeCanvas.getContext("2d");
+  if (!ctx) {
+    return;
+  }
+
+  const GRID_SIZE = 20;
+  const CELL_SIZE = Math.floor(snakeCanvas.width / GRID_SIZE);
+  const BASE_TICK_MS = 130;
+
+  let snake = [];
+  let direction = { x: 1, y: 0 };
+  let queuedDirection = { x: 1, y: 0 };
+  let food = { x: 0, y: 0 };
+  let score = 0;
+  let loopTimer = null;
+  let gameOver = false;
+  let gameRunning = false;
+
+  function setSnakeStatus(message, cssClass = "") {
+    snakeStatus.textContent = message;
+    snakeStatus.className = `status-text ${cssClass}`.trim();
+  }
+
+  function updateSnakeScore() {
+    snakeScore.textContent = `Score: ${score}`;
+  }
+
+  function randomCell() {
+    return {
+      x: Math.floor(Math.random() * GRID_SIZE),
+      y: Math.floor(Math.random() * GRID_SIZE),
+    };
+  }
+
+  function positionOnSnake(position) {
+    return snake.some((segment) => segment.x === position.x && segment.y === position.y);
+  }
+
+  function spawnFood() {
+    let candidate = randomCell();
+    while (positionOnSnake(candidate)) {
+      candidate = randomCell();
+    }
+    food = candidate;
+  }
+
+  function drawGrid() {
+    ctx.fillStyle = "#0a1120";
+    ctx.fillRect(0, 0, snakeCanvas.width, snakeCanvas.height);
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= GRID_SIZE; i += 1) {
+      const offset = i * CELL_SIZE;
+      ctx.beginPath();
+      ctx.moveTo(offset, 0);
+      ctx.lineTo(offset, snakeCanvas.height);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, offset);
+      ctx.lineTo(snakeCanvas.width, offset);
+      ctx.stroke();
+    }
+  }
+
+  function drawFood() {
+    const centerX = food.x * CELL_SIZE + CELL_SIZE / 2;
+    const centerY = food.y * CELL_SIZE + CELL_SIZE / 2;
+    ctx.fillStyle = "#ff6f87";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, CELL_SIZE * 0.34, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawSnake() {
+    snake.forEach((segment, index) => {
+      ctx.fillStyle = index === 0 ? "#42e8b4" : "#b9ffe6";
+      ctx.fillRect(segment.x * CELL_SIZE + 1, segment.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+    });
+  }
+
+  function renderSnake() {
+    drawGrid();
+    drawFood();
+    drawSnake();
+  }
+
+  function stopSnakeLoop() {
+    if (loopTimer) {
+      clearInterval(loopTimer);
+      loopTimer = null;
+    }
+    gameRunning = false;
+  }
+
+  function startSnakeLoop() {
+    if (gameRunning || gameOver) {
+      return;
+    }
+    gameRunning = true;
+    loopTimer = setInterval(stepSnake, BASE_TICK_MS);
+  }
+
+  function setDirection(nextDirection) {
+    if (gameOver) {
+      return;
+    }
+
+    const reversing = direction.x === -nextDirection.x && direction.y === -nextDirection.y;
+    if (reversing && snake.length > 1) {
+      return;
+    }
+
+    queuedDirection = nextDirection;
+    if (!gameRunning) {
+      startSnakeLoop();
+    }
+  }
+
+  function endSnakeGame(reason) {
+    gameOver = true;
+    stopSnakeLoop();
+    setSnakeStatus(`Game over: ${reason}`, "lose");
+  }
+
+  function stepSnake() {
+    direction = queuedDirection;
+    const head = snake[0];
+    const newHead = {
+      x: head.x + direction.x,
+      y: head.y + direction.y,
+    };
+
+    const hitWall = newHead.x < 0 || newHead.y < 0 || newHead.x >= GRID_SIZE || newHead.y >= GRID_SIZE;
+    if (hitWall) {
+      endSnakeGame("you hit a wall");
+      return;
+    }
+
+    const hitSelf = snake.some((segment) => segment.x === newHead.x && segment.y === newHead.y);
+    if (hitSelf) {
+      endSnakeGame("you hit yourself");
+      return;
+    }
+
+    snake.unshift(newHead);
+
+    const ateFood = newHead.x === food.x && newHead.y === food.y;
+    if (ateFood) {
+      score += 1;
+      updateSnakeScore();
+      spawnFood();
+      setSnakeStatus("Apple eaten. Keep going!", "win");
+    } else {
+      snake.pop();
+      setSnakeStatus("Use arrow keys or WASD. Eat apples and avoid collisions.");
+    }
+
+    renderSnake();
+  }
+
+  function resetSnakeGame() {
+    stopSnakeLoop();
+    snake = [
+      { x: 9, y: 10 },
+      { x: 8, y: 10 },
+      { x: 7, y: 10 },
+    ];
+    direction = { x: 1, y: 0 };
+    queuedDirection = { x: 1, y: 0 };
+    score = 0;
+    gameOver = false;
+    spawnFood();
+    updateSnakeScore();
+    setSnakeStatus("Press Start or move with arrow keys to begin.");
+    renderSnake();
+  }
+
+  snakeStartBtn.addEventListener("click", () => {
+    if (!gameRunning && !gameOver) {
+      startSnakeLoop();
+      setSnakeStatus("Snake is moving. Eat apples and avoid walls/body.");
+      return;
+    }
+    if (gameOver) {
+      resetSnakeGame();
+      startSnakeLoop();
+      setSnakeStatus("New run started.");
+    }
+  });
+
+  snakeResetBtn.addEventListener("click", () => {
+    resetSnakeGame();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    const key = event.key.toLowerCase();
+    if (key === "arrowup" || key === "w") {
+      event.preventDefault();
+      setDirection({ x: 0, y: -1 });
+    } else if (key === "arrowdown" || key === "s") {
+      event.preventDefault();
+      setDirection({ x: 0, y: 1 });
+    } else if (key === "arrowleft" || key === "a") {
+      event.preventDefault();
+      setDirection({ x: -1, y: 0 });
+    } else if (key === "arrowright" || key === "d") {
+      event.preventDefault();
+      setDirection({ x: 1, y: 0 });
+    }
+  });
+
+  resetSnakeGame();
+})();
 
 const hangmanTheme = document.getElementById("hangman-theme");
 const hangmanDifficulty = document.getElementById("hangman-difficulty");

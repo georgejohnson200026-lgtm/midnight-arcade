@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Snake | Midnight Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bungee:wght@400&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" data-page="snake">
+    <div class="orb orb-left" aria-hidden="true"></div>
+    <div class="orb orb-right" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="sidebar-mark">MA</span>
+          <div>
+            <p class="sidebar-title">Midnight Arcade</p>
+            <p class="sidebar-subtitle">Game Room</p>
+          </div>
+        </div>
+
+        <div class="sidebar-account">
+          <p class="account-label">Account</p>
+          <button id="sidebar-login-btn" class="sidebar-account-btn" type="button">Login</button>
+          <div id="sidebar-user-info" class="sidebar-user-info hidden">
+            <p id="sidebar-username" class="sidebar-username">User</p>
+            <button id="sidebar-logout-btn" class="sidebar-account-btn ghost-btn" type="button">Logout</button>
+          </div>
+        </div>
+
+        <label class="sidebar-search" for="sidebar-search-input">
+          <span>Search</span>
+          <input id="sidebar-search-input" type="search" placeholder="Search games" />
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Homepage navigation">
+          <a class="sidebar-link" href="index.html">Home</a>
+          <a class="sidebar-link" data-favorites-link href="favorite-games.html">Favorite Games</a>
+          <a class="sidebar-link" href="crazy-taxi.html">Skilled Games</a>
+          <a class="sidebar-link" href="tic-tac-toe.html">Multiplayer</a>
+        </nav>
+
+        <button class="sidebar-settings" type="button">Settings</button>
+        <div id="settings-panel" class="settings-panel hidden">
+          <div class="settings-content">
+            <div class="settings-header">
+              <h2>Settings</h2>
+              <button id="settings-close" class="settings-close" type="button">✕</button>
+            </div>
+            <div class="settings-body">
+              <div class="settings-group">
+                <label class="settings-item">
+                  <span>Light Mode</span>
+                  <input id="light-mode-toggle" type="checkbox" />
+                </label>
+              </div>
+              <div class="settings-group">
+                <p class="settings-label">Game Volume</p>
+                <label class="settings-item">
+                  <span>Master Volume</span>
+                  <input id="volume-slider" type="range" min="0" max="100" value="70" />
+                </label>
+                <p id="volume-display" class="volume-display">70%</p>
+              </div>
+              <div class="settings-group">
+                <p class="settings-label">Account</p>
+                <div class="settings-actions">
+                  <button id="settings-auth-btn" class="settings-action-btn" type="button">Login</button>
+                  <button id="settings-delete-account-btn" class="settings-action-btn danger-btn" type="button">Delete Account</button>
+                </div>
+                <p id="settings-account-status" class="status-text">Not signed in.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="settings-delete-confirm" class="settings-confirmation hidden" role="dialog" aria-modal="true" aria-labelledby="settings-delete-title">
+          <div class="settings-confirmation-card">
+            <h3 id="settings-delete-title">Delete Account?</h3>
+            <p>This permanently removes your account from this browser.</p>
+            <div class="settings-actions">
+              <button id="settings-cancel-delete-btn" class="settings-action-btn ghost-btn" type="button">Cancel</button>
+              <button id="settings-confirm-delete-btn" class="settings-action-btn danger-btn" type="button">Yes, delete it</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="page-content">
+        <header class="hero page-hero">
+          <p class="eyebrow">Arcade Game</p>
+          <h1>Snake</h1>
+          <p class="subtitle">Move one step at a time, eat apples to grow, and avoid walls and your own tail.</p>
+          <a class="back-link" href="index.html">Back to homepage</a>
+        </header>
+
+        <main class="games-grid single-game-grid">
+          <section class="game-card snake-card" id="snake-game">
+            <h2>Snake</h2>
+            <p class="game-description">Game loop: read input, move, detect collisions, eat food, and render.</p>
+            <div class="snake-hud">
+              <p id="snake-score" class="meta-text">Score: 0</p>
+              <div class="snake-controls">
+                <button id="snake-start-btn" type="button">Start</button>
+                <button id="snake-reset-btn" class="ghost-btn" type="button">Reset</button>
+              </div>
+            </div>
+            <canvas id="snake-canvas" class="snake-canvas" width="420" height="420" aria-label="Snake game board"></canvas>
+            <p id="snake-status" class="status-text">Press Start or move with arrow keys to begin.</p>
+            <p class="meta-text">Controls: Up, Down, Left, Right (or W, A, S, D).</p>
+          </section>
+        </main>
+
+        <footer class="site-footer">
+          <p>Midnight Arcade • Dark mode by default</p>
+        </footer>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
