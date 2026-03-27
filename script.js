@@ -333,7 +333,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
   const GRID_SIZE = 20;
   const CELL_SIZE = Math.floor(snakeCanvas.width / GRID_SIZE);
-  const BASE_TICK_MS = 130;
+  const BASE_TICK_MS = 200;
 
   let snake = [];
   let direction = { x: 1, y: 0 };
