@@ -75,6 +75,22 @@
               </div>
             </div>
             <div class="taxi-canvas-wrap">
+              <div id="taxi-mode-screen" class="taxi-mode-screen" role="dialog" aria-modal="true" aria-labelledby="taxi-mode-title">
+                <div class="taxi-mode-panel">
+                  <p class="eyebrow">Choose Mode</p>
+                  <h3 id="taxi-mode-title">Select Your Run</h3>
+                  <p class="meta-text">Pick a mode, then use Up, Left, Right, or Space to launch.</p>
+                  <div class="taxi-mode-actions">
+                    <button class="taxi-mode-btn" data-taxi-mode="day" type="button">Day Mode</button>
+                    <button class="taxi-mode-btn" data-taxi-mode="night" type="button">Night Mode</button>
+                    <button class="taxi-mode-btn" data-taxi-mode="crazy" type="button">Crazy Mode</button>
+                  </div>
+                </div>
+              </div>
+              <div id="taxi-wanted" class="taxi-wanted hidden" aria-live="polite">
+                <span class="taxi-wanted-label">Wanted</span>
+                <span id="taxi-wanted-stars" class="taxi-wanted-stars">★★★★★</span>
+              </div>
               <button id="taxi-menu-btn" class="taxi-menu-btn" type="button" aria-haspopup="dialog" aria-controls="taxi-menu" aria-expanded="false">
                 <span></span>
                 <span></span>
@@ -90,6 +106,7 @@
                   <div class="taxi-menu-actions">
                     <button id="taxi-resume-btn" type="button">Resume</button>
                     <button id="taxi-reset-btn" class="ghost-btn" type="button">Restart Run</button>
+                    <button id="taxi-change-mode-btn" class="ghost-btn" type="button">Change Mode</button>
                   </div>
                   <div class="taxi-menu-section">
                     <p>Controls</p>

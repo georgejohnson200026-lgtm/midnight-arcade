@@ -2323,6 +2323,11 @@ const taxiMenuBtn = document.getElementById("taxi-menu-btn");
 const taxiMenu = document.getElementById("taxi-menu");
 const taxiResumeBtn = document.getElementById("taxi-resume-btn");
 const taxiCloseMenuBtn = document.getElementById("taxi-close-menu-btn");
+const taxiChangeModeBtn = document.getElementById("taxi-change-mode-btn");
+const taxiModeScreen = document.getElementById("taxi-mode-screen");
+const taxiModeButtons = document.querySelectorAll(".taxi-mode-btn");
+const taxiWanted = document.getElementById("taxi-wanted");
+const taxiWantedStars = document.getElementById("taxi-wanted-stars");
 
 if (taxiCanvas) {
   const taxiContext = taxiCanvas.getContext("2d");
@@ -2335,6 +2340,7 @@ if (taxiCanvas) {
   const stageDistanceMeters = 3000;
   const runTimeSeconds = 63;
   const bonusTimeSeconds = 60;
+  const policeChaseSeconds = 15;
   const finishLineRevealDistance = 800;
   const horizonY = 126;
   const roadTopWidth = 110;
@@ -2363,9 +2369,14 @@ if (taxiCanvas) {
     timeLeft: runTimeSeconds,
     level: 1,
     score: 0,
+    mode: "day",
+    modeSelected: false,
     message: "Press the arrow keys to drive. Space jumps once you have enough speed.",
     messageTimer: 0,
     started: false,
+    pedestrians: [],
+    pedestrianTimer: 0,
+    policeChaseTimer: 0,
     paused: false,
     lastTime: 0,
   };
@@ -2387,6 +2398,61 @@ if (taxiCanvas) {
     taxiState.messageTimer = duration;
   }
 
+  function isCrazyMode() {
+    return taxiState.mode === "crazy";
+  }
+
+  function isNightMode() {
+    return taxiState.mode === "night";
+  }
+
+  function isPoliceChaseActive() {
+    return taxiState.policeChaseTimer > 0;
+  }
+
+  function modeLabel(mode) {
+    if (mode === "night") return "Night";
+    if (mode === "crazy") return "Crazy";
+    return "Day";
+  }
+
+  function updateWantedIndicator() {
+    if (!taxiWanted || !taxiWantedStars) {
+      return;
+    }
+
+    if (!isPoliceChaseActive()) {
+      taxiWanted.classList.add("hidden");
+      taxiWantedStars.textContent = "★★★★★";
+      return;
+    }
+
+    const stars = Math.max(1, Math.ceil((taxiState.policeChaseTimer / policeChaseSeconds) * 5));
+    taxiWanted.classList.remove("hidden");
+    taxiWantedStars.textContent = "★".repeat(stars);
+  }
+
+  function showTaxiModeScreen() {
+    taxiState.modeSelected = false;
+    taxiState.started = false;
+    taxiState.paused = false;
+    clearTaxiKeys();
+    if (taxiModeScreen) {
+      taxiModeScreen.classList.remove("hidden");
+    }
+    updateWantedIndicator();
+  }
+
+  function selectTaxiMode(mode) {
+    taxiState.mode = ["day", "night", "crazy"].includes(mode) ? mode : "day";
+    taxiState.modeSelected = true;
+    if (taxiModeScreen) {
+      taxiModeScreen.classList.add("hidden");
+    }
+    resetTaxiGame();
+    setTaxiMessage(`${modeLabel(taxiState.mode)} mode selected. Press Up, Left, Right, or Space to start.`, 1.4);
+  }
+
   function createRoadsideItem(side, type, depth = randomBetween(0.05, 0.95)) {
     return {
       side,
@@ -2398,6 +2464,9 @@ if (taxiCanvas) {
   }
 
   function targetTrafficCount() {
+    if (isPoliceChaseActive()) {
+      return 3;
+    }
     return taxiState.level === 1 ? 4 : 7;
   }
 
@@ -2406,6 +2475,9 @@ if (taxiCanvas) {
   }
 
   function trafficSpawnInterval() {
+    if (isPoliceChaseActive()) {
+      return randomBetween(2.1, 2.8);
+    }
     return taxiState.level === 1 ? randomBetween(1.2, 1.8) : randomBetween(0.8, 1.15);
   }
 
@@ -2431,6 +2503,46 @@ if (taxiCanvas) {
 
   function canPlaceTrafficCar(lane, depth) {
     return taxiState.traffic.every((car) => car.lane !== lane || Math.abs(car.depth - depth) >= minLaneTrafficGap());
+  }
+
+  function spawnPedestrian(initialDepth = randomBetween(0.08, 0.38)) {
+    const lane = Math.floor(randomBetween(0, 3));
+    taxiState.pedestrians.push({
+      lane,
+      depth: initialDepth,
+      sway: randomBetween(-1, 1),
+      outfit: Math.floor(randomBetween(0, 3)),
+    });
+  }
+
+  function spawnPoliceCar(lane, depth = randomBetween(0.08, 0.22)) {
+    taxiState.traffic.push({
+      lane,
+      depth,
+      speed: randomBetween(8, 14),
+      color: "#1f3b86",
+      number: 0,
+      roofSign: false,
+      police: true,
+    });
+  }
+
+  function ensurePoliceWave() {
+    for (let lane = 0; lane < 3; lane += 1) {
+      const hasPoliceInLane = taxiState.traffic.some((car) => car.police && car.lane === lane && car.depth < 1.05);
+      if (!hasPoliceInLane) {
+        spawnPoliceCar(lane);
+      }
+    }
+  }
+
+  function startPoliceChase() {
+    taxiState.policeChaseTimer = policeChaseSeconds;
+    taxiState.traffic = [];
+    taxiState.spawnTimer = trafficSpawnInterval();
+    ensurePoliceWave();
+    setTaxiMessage("Pedestrian hit. Five-star pursuit active!", 1.8);
+    updateWantedIndicator();
   }
 
   function beginNextTaxiLevel() {
@@ -2544,6 +2656,9 @@ if (taxiCanvas) {
     taxiState.timeLeft = runTimeSeconds;
     taxiState.level = 1;
     taxiState.score = 0;
+    taxiState.pedestrians = [];
+    taxiState.pedestrianTimer = randomBetween(1.2, 2.2);
+    taxiState.policeChaseTimer = 0;
     taxiState.messageTimer = 0;
     taxiState.started = false;
     taxiState.paused = false;
@@ -2561,11 +2676,18 @@ if (taxiCanvas) {
     setTaxiMessage("Press the arrow keys to drive. Space jumps once you have enough speed.");
     taxiSpeed.textContent = "0";
     taxiDistance.textContent = (stageDistanceMeters / 1609).toFixed(1);
+    updateWantedIndicator();
   }
 
   function updateTaxiStatus(deltaTime) {
     if (taxiState.paused) {
       taxiStatus.textContent = "Game paused. Resume when you are ready to drive again.";
+      taxiStatus.className = "status-text";
+      return;
+    }
+
+    if (!taxiState.modeSelected) {
+      taxiStatus.textContent = "Choose Day, Night, or Crazy mode to begin.";
       taxiStatus.className = "status-text";
       return;
     }
@@ -2636,6 +2758,7 @@ if (taxiCanvas) {
       taxiSpeed.textContent = Math.round(player.speed).toString();
       taxiSpeedFill.style.width = `${(player.speed / maxTaxiSpeed) * 100}%`;
       taxiDistance.textContent = Math.max(0, taxiState.distanceMeters / 1609).toFixed(1);
+      updateWantedIndicator();
       updateTaxiStatus(deltaTime);
       return;
     }
@@ -2645,6 +2768,15 @@ if (taxiCanvas) {
     }
 
     const runActive = taxiState.timeLeft > 0 && taxiState.distanceMeters > 0;
+
+    if (isPoliceChaseActive()) {
+      taxiState.policeChaseTimer = Math.max(0, taxiState.policeChaseTimer - deltaTime);
+      if (!isPoliceChaseActive()) {
+        taxiState.traffic = taxiState.traffic.filter((car) => !car.police);
+        taxiState.spawnTimer = 0.4;
+        setTaxiMessage("Wanted level cleared. Civilian traffic is returning.", 1.5);
+      }
+    }
 
     player.crashTimer = Math.max(0, player.crashTimer - deltaTime);
     player.knockback = Math.max(0, player.knockback - 90 * deltaTime);
@@ -2684,14 +2816,32 @@ if (taxiCanvas) {
         taxiState.spawnTimer -= deltaTime;
       }
 
-      if (taxiState.spawnTimer <= 0 && taxiState.traffic.length < targetTrafficCount()) {
-        spawnTrafficCar();
+      if (taxiState.spawnTimer <= 0) {
+        if (isPoliceChaseActive()) {
+          ensurePoliceWave();
+        } else if (taxiState.traffic.length < targetTrafficCount()) {
+          spawnTrafficCar();
+        }
         taxiState.spawnTimer = trafficSpawnInterval();
       }
 
       taxiState.traffic.forEach((car) => {
         car.depth += Math.max(0, (worldSpeed - car.speed + 14) / 170) * deltaTime;
       });
+
+      if (isCrazyMode() && !isPoliceChaseActive()) {
+        taxiState.pedestrianTimer -= deltaTime;
+        if (taxiState.pedestrianTimer <= 0 && taxiState.pedestrians.length < 1 && worldSpeed > 0) {
+          spawnPedestrian();
+          taxiState.pedestrianTimer = randomBetween(1.6, 2.9);
+        }
+
+        taxiState.pedestrians.forEach((person) => {
+          person.depth += Math.max(0, worldSpeed / 230) * deltaTime;
+        });
+
+        taxiState.pedestrians = taxiState.pedestrians.filter((person) => person.depth < 1.12);
+      }
 
       enforceTrafficSpacing();
 
@@ -2726,6 +2876,16 @@ if (taxiCanvas) {
         }
       }
 
+      if (isCrazyMode() && !isPoliceChaseActive()) {
+        for (const person of taxiState.pedestrians) {
+          if (person.lane === player.lane && person.depth > 0.8 && person.depth < 0.95 && player.jumpOffset < 100) {
+            person.depth = 1.2;
+            startPoliceChase();
+            break;
+          }
+        }
+      }
+
       if (taxiState.timeLeft <= 0 && taxiState.distanceMeters > 0) {
         player.speed = 0;
         setTaxiMessage("Out of time. Restart the run and keep your pace up.", 1.8);
@@ -2737,6 +2897,7 @@ if (taxiCanvas) {
     taxiSpeed.textContent = Math.round(player.speed).toString();
     taxiSpeedFill.style.width = `${(player.speed / maxTaxiSpeed) * 100}%`;
     taxiDistance.textContent = Math.max(0, taxiState.distanceMeters / 1609).toFixed(1);
+    updateWantedIndicator();
     updateTaxiStatus(deltaTime);
   }
 
@@ -2854,7 +3015,7 @@ if (taxiCanvas) {
     drawShrub(x, y + 20, scale);
   }
 
-  function drawPerspectiveCar(centerX, baseY, scale, color, isPlayer = false, crashed = false, jumpOffset = 0, roofSign = false) {
+  function drawPerspectiveCar(centerX, baseY, scale, color, isPlayer = false, crashed = false, jumpOffset = 0, roofSign = false, isPolice = false) {
     taxiContext.save();
     taxiContext.translate(centerX, baseY - jumpOffset);
 
@@ -2865,9 +3026,9 @@ if (taxiCanvas) {
     const bodyWidth = 130 * scale;
     const bodyHeight = 76 * scale;
     const darkColor = "#111111";
-    const lowerBodyColor = isPlayer ? "#b11412" : "#2e247d";
-    const sidePanelColor = isPlayer ? "#d71d17" : "#4539a3";
-    const windowColor = isPlayer ? "#3b65ff" : "#6b5bdf";
+    const lowerBodyColor = isPolice ? "#0f234f" : isPlayer ? "#b11412" : "#2e247d";
+    const sidePanelColor = isPolice ? "#1a3770" : isPlayer ? "#d71d17" : "#4539a3";
+    const windowColor = isPolice ? "#8ec5ff" : isPlayer ? "#3b65ff" : "#6b5bdf";
 
     taxiContext.fillStyle = "rgba(0, 0, 0, 0.22)";
     taxiContext.beginPath();
@@ -2942,7 +3103,7 @@ if (taxiCanvas) {
     taxiContext.fill();
     taxiContext.stroke();
 
-    if (isPlayer || roofSign) {
+    if (isPlayer || roofSign || isPolice) {
       taxiContext.fillStyle = "#f3f1d1";
       taxiContext.fillRect(-bodyWidth * 0.14, -bodyHeight * 0.56, bodyWidth * 0.28, bodyHeight * 0.12);
       taxiContext.strokeRect(-bodyWidth * 0.14, -bodyHeight * 0.56, bodyWidth * 0.28, bodyHeight * 0.12);
@@ -2951,8 +3112,18 @@ if (taxiCanvas) {
     taxiContext.fillStyle = darkColor;
     taxiContext.font = `${Math.max(8, 14 * scale)}px "Space Grotesk", sans-serif`;
     taxiContext.textAlign = "center";
-    if (isPlayer || roofSign) {
-      taxiContext.fillText(isPlayer ? "TAXI" : "CAB", 0, -bodyHeight * 0.47);
+    if (isPlayer || roofSign || isPolice) {
+      taxiContext.fillText(isPolice ? "POLICE" : isPlayer ? "TAXI" : "CAB", 0, -bodyHeight * 0.47);
+    }
+
+    if (isPolice) {
+      const blinkPhase = Math.floor(Date.now() / 180) % 2 === 0;
+      taxiContext.fillStyle = blinkPhase ? "#ff3b30" : "#4fc3ff";
+      taxiContext.fillRect(-bodyWidth * 0.09, -bodyHeight * 0.57, bodyWidth * 0.09, bodyHeight * 0.1);
+      taxiContext.fillStyle = blinkPhase ? "#4fc3ff" : "#ff3b30";
+      taxiContext.fillRect(0, -bodyHeight * 0.57, bodyWidth * 0.09, bodyHeight * 0.1);
+      taxiContext.strokeStyle = "#0f1420";
+      taxiContext.strokeRect(-bodyWidth * 0.09, -bodyHeight * 0.57, bodyWidth * 0.18, bodyHeight * 0.1);
     }
 
     taxiContext.fillStyle = color;
@@ -3060,24 +3231,32 @@ if (taxiCanvas) {
   function drawRoad() {
     taxiContext.clearRect(0, 0, taxiCanvas.width, taxiCanvas.height);
 
+    const skyTop = isNightMode() ? "#0f1f49" : "#73d1d6";
+    const skyBottom = isNightMode() ? "#2c3568" : "#d6f7ff";
+    const grassA = isNightMode() ? "#2c5635" : "#7fcb5a";
+    const grassB = isNightMode() ? "#21492f" : "#68b74a";
+    const grassC = isNightMode() ? "#1d3f28" : "#5da341";
+    const shoulderColor = isNightMode() ? "#3f6f44" : "#73bf53";
+    const roadColor = isNightMode() ? "#676b75" : "#aeaeae";
+
     const skyGradient = taxiContext.createLinearGradient(0, 0, 0, horizonY);
-    skyGradient.addColorStop(0, "#73d1d6");
-    skyGradient.addColorStop(1, "#d6f7ff");
+    skyGradient.addColorStop(0, skyTop);
+    skyGradient.addColorStop(1, skyBottom);
     taxiContext.fillStyle = skyGradient;
     taxiContext.fillRect(0, 0, taxiCanvas.width, horizonY);
 
-    taxiContext.fillStyle = "#7fcb5a";
+    taxiContext.fillStyle = grassA;
     taxiContext.fillRect(0, horizonY, taxiCanvas.width, taxiCanvas.height - horizonY);
-    taxiContext.fillStyle = "#68b74a";
+    taxiContext.fillStyle = grassB;
     for (let strip = 0; strip < taxiCanvas.width; strip += 18) {
       taxiContext.fillRect(strip, horizonY + 12, 10, taxiCanvas.height - horizonY - 12);
     }
-    taxiContext.fillStyle = "#5da341";
+    taxiContext.fillStyle = grassC;
     for (let strip = 8; strip < taxiCanvas.width; strip += 22) {
       taxiContext.fillRect(strip, horizonY + 20, 6, taxiCanvas.height - horizonY - 20);
     }
 
-    taxiContext.fillStyle = "#73bf53";
+    taxiContext.fillStyle = shoulderColor;
     taxiContext.beginPath();
     taxiContext.moveTo(0, taxiCanvas.height);
     taxiContext.lineTo(taxiCanvas.width / 2 - roadBottomWidth / 2, taxiCanvas.height);
@@ -3094,7 +3273,7 @@ if (taxiCanvas) {
     taxiContext.closePath();
     taxiContext.fill();
 
-    taxiContext.fillStyle = "#aeaeae";
+    taxiContext.fillStyle = roadColor;
     taxiContext.beginPath();
     taxiContext.moveTo(taxiCanvas.width / 2 - roadTopWidth / 2, horizonY);
     taxiContext.lineTo(taxiCanvas.width / 2 + roadTopWidth / 2, horizonY);
@@ -3113,7 +3292,7 @@ if (taxiCanvas) {
     taxiContext.clip();
 
 
-    taxiContext.strokeStyle = "#ececec";
+    taxiContext.strokeStyle = isNightMode() ? "#d0d3dd" : "#ececec";
     taxiContext.lineWidth = 4;
     taxiContext.beginPath();
     taxiContext.moveTo(taxiCanvas.width / 2 - roadTopWidth / 2, horizonY);
@@ -3122,7 +3301,7 @@ if (taxiCanvas) {
     taxiContext.lineTo(taxiCanvas.width / 2 + roadBottomWidth / 2, taxiCanvas.height);
     taxiContext.stroke();
 
-    taxiContext.strokeStyle = "#ffffff";
+    taxiContext.strokeStyle = isNightMode() ? "#f3f8ff" : "#ffffff";
     for (let y = horizonY + 18 - taxiState.dashOffset; y < taxiCanvas.height; y += 86) {
       const depth = clamp((y - horizonY) / (playerBaseY - horizonY), 0, 1);
       const nextDepth = clamp((y + 34 - horizonY) / (playerBaseY - horizonY), 0, 1);
@@ -3226,6 +3405,37 @@ if (taxiCanvas) {
     taxiContext.restore();
   }
 
+  function drawPedestrian(person) {
+    const depth = clamp(person.depth, 0.08, 0.98);
+    const y = screenYForDepth(depth);
+    const x = laneCenterAtDepth(person.lane, depth);
+    const scale = lerp(0.18, 0.72, depth);
+    const sway = Math.sin((Date.now() / 200) + person.sway) * 2.5;
+
+    const outfitColors = ["#ffd35c", "#f67a6f", "#5fd4ff"];
+    const topColor = outfitColors[person.outfit % outfitColors.length];
+
+    taxiContext.save();
+    taxiContext.translate(x + sway, y);
+    taxiContext.scale(scale, scale);
+    taxiContext.fillStyle = "rgba(0, 0, 0, 0.25)";
+    taxiContext.beginPath();
+    taxiContext.ellipse(0, 26, 16, 5, 0, 0, Math.PI * 2);
+    taxiContext.fill();
+
+    taxiContext.fillStyle = "#f0c8a4";
+    taxiContext.beginPath();
+    taxiContext.arc(0, -24, 9, 0, Math.PI * 2);
+    taxiContext.fill();
+
+    taxiContext.fillStyle = topColor;
+    taxiContext.fillRect(-10, -15, 20, 22);
+    taxiContext.fillStyle = "#2d3f66";
+    taxiContext.fillRect(-9, 7, 7, 20);
+    taxiContext.fillRect(2, 7, 7, 20);
+    taxiContext.restore();
+  }
+
   function drawTaxiScene() {
     drawRoad();
 
@@ -3236,6 +3446,11 @@ if (taxiCanvas) {
 
     drawFinishLine();
 
+    taxiState.pedestrians
+      .slice()
+      .sort((first, second) => first.depth - second.depth)
+      .forEach((person) => drawPedestrian(person));
+
     taxiState.traffic
       .slice()
       .sort((first, second) => first.depth - second.depth)
@@ -3244,7 +3459,7 @@ if (taxiCanvas) {
         const y = screenYForDepth(depth);
         const scale = lerp(0.22, 0.9, depth);
         const x = laneCenterAtDepth(car.lane, depth);
-        drawPerspectiveCar(x, y, scale, car.color, false, false, 0, car.roofSign);
+        drawPerspectiveCar(x, y, scale, car.color, false, false, 0, car.roofSign, !!car.police);
       });
 
     const playerX = laneCenterAtDepth(taxiState.player.laneVisual, 0.97);
@@ -3256,7 +3471,8 @@ if (taxiCanvas) {
       true,
       isTaxiCrashed(),
       taxiState.player.jumpOffset,
-      true
+      true,
+      false
     );
     drawTaxiHud();
   }
@@ -3287,6 +3503,10 @@ if (taxiCanvas) {
     event.preventDefault();
 
     if (taxiState.paused) {
+      return;
+    }
+
+    if (!taxiState.modeSelected) {
       return;
     }
 
@@ -3356,6 +3576,19 @@ if (taxiCanvas) {
   taxiMenuBtn.addEventListener("click", openTaxiMenu);
   taxiResumeBtn.addEventListener("click", closeTaxiMenu);
   taxiCloseMenuBtn.addEventListener("click", closeTaxiMenu);
+  if (taxiChangeModeBtn) {
+    taxiChangeModeBtn.addEventListener("click", () => {
+      taxiMenu.hidden = true;
+      taxiMenuBtn.setAttribute("aria-expanded", "false");
+      showTaxiModeScreen();
+    });
+  }
+
+  taxiModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      selectTaxiMode(button.dataset.taxiMode || "day");
+    });
+  });
   taxiMenu.addEventListener("click", (event) => {
     if (event.target === taxiMenu) {
       closeTaxiMenu();
@@ -3363,6 +3596,7 @@ if (taxiCanvas) {
   });
 
   resetTaxiGame();
+  showTaxiModeScreen();
   requestAnimationFrame(taxiLoop);
 }
 
