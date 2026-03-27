@@ -2506,12 +2506,15 @@ if (taxiCanvas) {
   }
 
   function spawnPedestrian(initialDepth = randomBetween(0.08, 0.38)) {
+    const models = ["man", "woman", "worker"];
     const lane = Math.floor(randomBetween(0, 3));
     taxiState.pedestrians.push({
       lane,
       depth: initialDepth,
       sway: randomBetween(-1, 1),
-      outfit: Math.floor(randomBetween(0, 3)),
+      model: models[Math.floor(randomBetween(0, models.length))],
+      hit: false,
+      flattenedTimer: 0,
     });
   }
 
@@ -2556,6 +2559,11 @@ if (taxiCanvas) {
 
     while (taxiState.traffic.length < targetTrafficCount()) {
       spawnTrafficCar(randomBetween(0.08, 0.4));
+    }
+
+    if (isCrazyMode() && !isPoliceChaseActive()) {
+      taxiState.pedestrians = [];
+      taxiState.pedestrianTimer = randomBetween(1.1, 2.0);
     }
   }
 
@@ -2718,12 +2726,6 @@ if (taxiCanvas) {
       return;
     }
 
-    if (taxiState.distanceMeters <= 0) {
-      taxiStatus.textContent = "Finish line crossed. Next level is loading in.";
-      taxiStatus.classList.add("win");
-      return;
-    }
-
     if (taxiState.timeLeft <= 0) {
       taxiStatus.textContent = "Out of time. Restart the run and keep your speed up.";
       taxiStatus.classList.add("lose");
@@ -2763,11 +2765,7 @@ if (taxiCanvas) {
       return;
     }
 
-    if (taxiState.distanceMeters <= 0) {
-      beginNextTaxiLevel();
-    }
-
-    const runActive = taxiState.timeLeft > 0 && taxiState.distanceMeters > 0;
+    const runActive = taxiState.timeLeft > 0;
 
     if (isPoliceChaseActive()) {
       taxiState.policeChaseTimer = Math.max(0, taxiState.policeChaseTimer - deltaTime);
@@ -2800,6 +2798,10 @@ if (taxiCanvas) {
       taxiState.score += worldSpeed * deltaTime * 3;
       taxiState.dashOffset = (taxiState.dashOffset - worldSpeed * deltaTime * 3.2 + 86) % 86;
       taxiState.startLineOffset += worldSpeed * deltaTime * 0.9;
+
+      if (taxiState.distanceMeters <= 0) {
+        beginNextTaxiLevel();
+      }
 
       if (player.jumping) {
         player.jumpOffset += player.jumpVelocity * deltaTime;
@@ -2838,6 +2840,9 @@ if (taxiCanvas) {
 
         taxiState.pedestrians.forEach((person) => {
           person.depth += Math.max(0, worldSpeed / 230) * deltaTime;
+          if (person.flattenedTimer > 0) {
+            person.flattenedTimer = Math.max(0, person.flattenedTimer - deltaTime);
+          }
         });
 
         taxiState.pedestrians = taxiState.pedestrians.filter((person) => person.depth < 1.12);
@@ -2878,15 +2883,16 @@ if (taxiCanvas) {
 
       if (isCrazyMode() && !isPoliceChaseActive()) {
         for (const person of taxiState.pedestrians) {
-          if (person.lane === player.lane && person.depth > 0.8 && person.depth < 0.95 && player.jumpOffset < 100) {
-            person.depth = 1.2;
+          if (!person.hit && person.lane === player.lane && person.depth > 0.8 && person.depth < 0.95 && player.jumpOffset < 100) {
+            person.hit = true;
+            person.flattenedTimer = 1.7;
             startPoliceChase();
             break;
           }
         }
       }
 
-      if (taxiState.timeLeft <= 0 && taxiState.distanceMeters > 0) {
+      if (taxiState.timeLeft <= 0) {
         player.speed = 0;
         setTaxiMessage("Out of time. Restart the run and keep your pace up.", 1.8);
       }
@@ -3409,15 +3415,42 @@ if (taxiCanvas) {
     const depth = clamp(person.depth, 0.08, 0.98);
     const y = screenYForDepth(depth);
     const x = laneCenterAtDepth(person.lane, depth);
-    const scale = lerp(0.18, 0.72, depth);
-    const sway = Math.sin((Date.now() / 200) + person.sway) * 2.5;
+    const scale = lerp(0.36, 1.44, depth);
+    const sway = person.hit ? 0 : Math.sin((Date.now() / 200) + person.sway) * 2.5;
 
-    const outfitColors = ["#ffd35c", "#f67a6f", "#5fd4ff"];
-    const topColor = outfitColors[person.outfit % outfitColors.length];
+    const modelColors = {
+      man: { hair: "#2a1f19", top: "#57a7ff", pants: "#2b3450" },
+      woman: { hair: "#6f3a25", top: "#ff7e9e", pants: "#3e2b5f" },
+      worker: { hair: "#3a2c1f", top: "#ffd35c", pants: "#2d3f66" },
+    };
+    const visual = modelColors[person.model] || modelColors.man;
 
     taxiContext.save();
     taxiContext.translate(x + sway, y);
     taxiContext.scale(scale, scale);
+
+    if (person.hit) {
+      taxiContext.fillStyle = "rgba(0, 0, 0, 0.35)";
+      taxiContext.beginPath();
+      taxiContext.ellipse(0, 16, 24, 7, 0, 0, Math.PI * 2);
+      taxiContext.fill();
+
+      taxiContext.rotate(-0.06);
+      taxiContext.fillStyle = visual.top;
+      taxiContext.fillRect(-24, -2, 48, 12);
+      taxiContext.fillStyle = visual.pants;
+      taxiContext.fillRect(24, -1, 18, 10);
+      taxiContext.fillRect(-42, -1, 18, 10);
+      taxiContext.fillStyle = "#f0c8a4";
+      taxiContext.beginPath();
+      taxiContext.arc(-28, 4, 7, 0, Math.PI * 2);
+      taxiContext.fill();
+      taxiContext.fillStyle = visual.hair;
+      taxiContext.fillRect(-33, -3, 10, 4);
+      taxiContext.restore();
+      return;
+    }
+
     taxiContext.fillStyle = "rgba(0, 0, 0, 0.25)";
     taxiContext.beginPath();
     taxiContext.ellipse(0, 26, 16, 5, 0, 0, Math.PI * 2);
@@ -3428,11 +3461,14 @@ if (taxiCanvas) {
     taxiContext.arc(0, -24, 9, 0, Math.PI * 2);
     taxiContext.fill();
 
-    taxiContext.fillStyle = topColor;
-    taxiContext.fillRect(-10, -15, 20, 22);
-    taxiContext.fillStyle = "#2d3f66";
-    taxiContext.fillRect(-9, 7, 7, 20);
-    taxiContext.fillRect(2, 7, 7, 20);
+    taxiContext.fillStyle = visual.hair;
+    taxiContext.fillRect(-8, -31, 16, 6);
+
+    taxiContext.fillStyle = visual.top;
+    taxiContext.fillRect(-11, -15, 22, 24);
+    taxiContext.fillStyle = visual.pants;
+    taxiContext.fillRect(-10, 8, 8, 22);
+    taxiContext.fillRect(2, 8, 8, 22);
     taxiContext.restore();
   }
 
@@ -3525,7 +3561,7 @@ if (taxiCanvas) {
       return;
     }
 
-    if (taxiState.timeLeft <= 0 || taxiState.distanceMeters <= 0 || event.repeat) {
+    if (taxiState.timeLeft <= 0 || event.repeat) {
       return;
     }
 
