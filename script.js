@@ -3649,9 +3649,9 @@ if (taxiCanvas) {
     });
   });
 
-  // If URL has ?create=1, auto-switch to the multiplayer tab and trigger create
+  // If URL has ?create=1 or ?multiplayer=1, auto-switch to the multiplayer tab.
   const params = new URLSearchParams(window.location.search);
-  if (params.get("create") === "1") {
+  if (params.get("create") === "1" || params.get("multiplayer") === "1") {
     const multiTab = document.querySelector('.mode-tab[data-tab="multi"]');
     if (multiTab) multiTab.click();
   }

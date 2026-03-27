@@ -737,6 +737,33 @@ select {
   text-decoration: underline;
 }
 
+.mp-game-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.55rem;
+}
+
+.mp-game-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 700;
+  color: #eaf1ff;
+  background: linear-gradient(135deg, #22314f, #1a2943);
+  border: 1px solid #36517d;
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+}
+
+.mp-game-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
 .mp-chat-log {
   min-height: 150px;
   max-height: 240px;
@@ -1711,6 +1738,10 @@ button:disabled {
   }
 
   .mp-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .mp-game-buttons {
     grid-template-columns: 1fr;
   }
 
