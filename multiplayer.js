@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   var page = document.body.dataset.page;
-  var isMultiplayerPage = page === "hangman" || page === "tic-tac-toe";
+  var isMultiplayerPage = page === "hangman" || page === "tic-tac-toe" || page === "number-guess" || page === "rock-paper-scissors";
   if (!isMultiplayerPage) { return; }
 
   if (typeof Peer === "undefined") {
@@ -79,6 +79,15 @@
           board: Array(9).fill(""), turn: "X", winner: "",
           message: "Waiting for invite acceptance.",
         },
+        numberGuess: {
+          started: false, round: 0, secret: 0, winner: "",
+          scores: {}, history: [],
+          message: "Waiting for invite acceptance.",
+        },
+        rps: {
+          started: false, round: 0, winner: "", choices: {}, lastChoices: {},
+          scores: {}, message: "Waiting for invite acceptance.",
+        },
       },
     };
   }
@@ -91,6 +100,8 @@
     renderChat();
     if (page === "hangman")     { renderHangman(); }
     if (page === "tic-tac-toe") { renderTicTacToe(); }
+    if (page === "number-guess") { renderNumberGuess(); }
+    if (page === "rock-paper-scissors") { renderRps(); }
     switchLinks.forEach(function (link) {
       var target = link.dataset.roomSwitch;
       if (roomId) { link.href = target + "?room=" + roomId; }
@@ -257,6 +268,100 @@
     });
   }
 
+  function scoreLine(scores) {
+    var ids = Object.keys(roomState.participants || {});
+    if (!ids.length) { return "No rounds won yet."; }
+    var rows = ids.map(function (id) {
+      var name = (roomState.participants[id] || {}).name || "Player";
+      var points = (scores && scores[id]) || 0;
+      return name + ": " + points;
+    });
+    return rows.join(" \u2022 ");
+  }
+
+  function renderNumberGuess() {
+    var wrap = document.getElementById("mp-ng-wrap");
+    if (!wrap) { return; }
+
+    var state = roomState.games.numberGuess;
+    var statusEl = document.getElementById("mp-ng-status");
+    var startBtn = document.getElementById("mp-ng-start-btn");
+    var input = document.getElementById("mp-ng-input");
+    var guessBtn = document.getElementById("mp-ng-guess-btn");
+    var historyEl = document.getElementById("mp-ng-history");
+    var scoreEl = document.getElementById("mp-ng-score");
+    var count = playerCount();
+
+    if (startBtn) { startBtn.disabled = !acceptedInvite || !isHost || count < 2; }
+    if (input) { input.disabled = !acceptedInvite || !state.started || !!state.winner; }
+    if (guessBtn) { guessBtn.disabled = !acceptedInvite || !state.started || !!state.winner; }
+
+    if (scoreEl) { scoreEl.textContent = "Scoreboard: " + scoreLine(state.scores); }
+    if (historyEl) {
+      historyEl.textContent = state.history && state.history.length
+        ? ("Guess log: " + state.history.slice(-6).join(" | "))
+        : "Guess log appears here.";
+    }
+
+    if (!statusEl) { return; }
+    if (!acceptedInvite) {
+      statusEl.textContent = "Accept invite to join this multiplayer room."; statusEl.className = "status-text"; return;
+    }
+    if (!state.started && !state.winner) {
+      statusEl.textContent = state.message || "Host starts when both players are ready."; statusEl.className = "status-text"; return;
+    }
+    if (state.winner) {
+      statusEl.textContent = state.message; statusEl.className = "status-text win"; return;
+    }
+    statusEl.textContent = state.message || "Round live. Guess the number between 1 and 100.";
+    statusEl.className = "status-text";
+  }
+
+  function rpsResult(a, b) {
+    if (a === b) { return "draw"; }
+    if ((a === "rock" && b === "scissors") || (a === "paper" && b === "rock") || (a === "scissors" && b === "paper")) {
+      return "A";
+    }
+    return "B";
+  }
+
+  function renderRps() {
+    var wrap = document.getElementById("mp-rps-wrap");
+    if (!wrap) { return; }
+    var state = roomState.games.rps;
+    var statusEl = document.getElementById("mp-rps-status");
+    var startBtn = document.getElementById("mp-rps-start-btn");
+    var scoreEl = document.getElementById("mp-rps-score");
+    var revealEl = document.getElementById("mp-rps-reveal");
+    var count = playerCount();
+    var myChoice = state.choices[myId];
+
+    if (startBtn) { startBtn.disabled = !acceptedInvite || !isHost || count < 2; }
+    document.querySelectorAll("[data-mp-rps]").forEach(function (btn) {
+      btn.disabled = !acceptedInvite || !state.started || !!state.winner || !!myChoice;
+    });
+
+    if (scoreEl) { scoreEl.textContent = "Scoreboard: " + scoreLine(state.scores); }
+    if (revealEl) {
+      var ids = Object.keys(state.lastChoices || {});
+      if (!ids.length) {
+        revealEl.textContent = "Round choices appear here after both players lock in.";
+      } else {
+        revealEl.textContent = ids.map(function (id) {
+          var name = (roomState.participants[id] || {}).name || "Player";
+          return name + " chose " + state.lastChoices[id];
+        }).join(" \u2022 ");
+      }
+    }
+
+    if (!statusEl) { return; }
+    if (!acceptedInvite) {
+      statusEl.textContent = "Accept invite to join this multiplayer room."; statusEl.className = "status-text"; return;
+    }
+    statusEl.textContent = state.message || "Host starts when both players are ready.";
+    statusEl.className = "status-text" + (state.winner ? " win" : "");
+  }
+
   // --- P2P messaging -----------------------------------------------------------
   function broadcast(msg) {
     var data = JSON.stringify(msg);
@@ -275,7 +380,7 @@
     if (!isHost) { return; }
     var state  = JSON.parse(JSON.stringify(roomState));
     var fromId = action.fromId || myId;
-    var ids, g, letter, solved, won, patterns, winnerName, mark, setterName;
+    var ids, g, letter, solved, won, patterns, winnerName, mark, setterName, guess, value, firstId, secondId, result;
 
     switch (action.type) {
 
@@ -353,6 +458,80 @@
         } else {
           g.turn = mark === "X" ? "O" : "X";
         }
+        break;
+
+      case "start-number-guess":
+        if (Object.keys(state.participants).length < 2) { break; }
+        g = state.games.numberGuess;
+        g.started = true; g.round = (g.round || 0) + 1;
+        g.secret = Math.floor(Math.random() * 100) + 1;
+        g.winner = ""; g.history = [];
+        g.message = "Round started. Guess the number from 1 to 100.";
+        break;
+
+      case "ng-guess":
+        g = state.games.numberGuess;
+        if (!g.started || g.winner) { break; }
+        guess = Number(action.guess);
+        if (!Number.isInteger(guess) || guess < 1 || guess > 100) { break; }
+        value = (state.participants[fromId] || {}).name || "Player";
+        if (guess === g.secret) {
+          g.winner = fromId;
+          g.started = false;
+          g.scores[fromId] = (g.scores[fromId] || 0) + 1;
+          g.message = value + " guessed " + guess + " and wins the round!";
+          g.history.push(value + " guessed " + guess + " (correct)");
+        } else if (guess < g.secret) {
+          g.message = value + " guessed " + guess + ". Too low.";
+          g.history.push(value + " guessed " + guess + " (low)");
+        } else {
+          g.message = value + " guessed " + guess + ". Too high.";
+          g.history.push(value + " guessed " + guess + " (high)");
+        }
+        g.history = g.history.slice(-16);
+        break;
+
+      case "start-rps":
+        if (Object.keys(state.participants).length < 2) { break; }
+        g = state.games.rps;
+        g.started = true; g.round = (g.round || 0) + 1;
+        g.winner = ""; g.choices = {};
+        g.message = "Round started. Choose rock, paper, or scissors.";
+        break;
+
+      case "rps-pick":
+        g = state.games.rps;
+        if (!g.started || g.winner) { break; }
+        if (!["rock", "paper", "scissors"].includes(action.choice)) { break; }
+        if (!state.participants[fromId]) { break; }
+        if (g.choices[fromId]) { break; }
+        g.choices[fromId] = action.choice;
+
+        ids = Object.keys(state.participants);
+        if (ids.length < 2) { break; }
+        firstId = ids[0]; secondId = ids[1];
+        if (!g.choices[firstId] || !g.choices[secondId]) {
+          g.message = "Choices locked: " + Object.keys(g.choices).length + "/2. Waiting for both players.";
+          break;
+        }
+
+        g.lastChoices = { };
+        g.lastChoices[firstId] = g.choices[firstId];
+        g.lastChoices[secondId] = g.choices[secondId];
+        result = rpsResult(g.choices[firstId], g.choices[secondId]);
+        g.started = false;
+
+        if (result === "draw") {
+          g.winner = "draw";
+          g.message = "Draw round. Start another round.";
+        } else {
+          winnerName = result === "A" ? firstId : secondId;
+          g.winner = winnerName;
+          g.scores[winnerName] = (g.scores[winnerName] || 0) + 1;
+          value = (state.participants[winnerName] || {}).name || "Player";
+          g.message = value + " wins the round.";
+        }
+        g.choices = {};
         break;
 
       default: break;
@@ -514,6 +693,46 @@
         playerAction({ type: "start-ttt", fromId: myId });
       });
     }
+
+    var startNgBtn = document.getElementById("mp-ng-start-btn");
+    if (startNgBtn) {
+      startNgBtn.addEventListener("click", function () {
+        playerAction({ type: "start-number-guess", fromId: myId });
+      });
+    }
+
+    var guessBtn = document.getElementById("mp-ng-guess-btn");
+    var guessInput = document.getElementById("mp-ng-input");
+    if (guessBtn && guessInput) {
+      var submitGuess = function () {
+        if (!acceptedInvite) { return; }
+        var value = Number(guessInput.value);
+        if (!Number.isInteger(value) || value < 1 || value > 100) {
+          if (roomStatus) { roomStatus.textContent = "Enter a whole number between 1 and 100."; roomStatus.className = "status-text lose"; }
+          return;
+        }
+        playerAction({ type: "ng-guess", guess: value, fromId: myId });
+        guessInput.value = "";
+      };
+      guessBtn.addEventListener("click", submitGuess);
+      guessInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); submitGuess(); }
+      });
+    }
+
+    var startRpsBtn = document.getElementById("mp-rps-start-btn");
+    if (startRpsBtn) {
+      startRpsBtn.addEventListener("click", function () {
+        playerAction({ type: "start-rps", fromId: myId });
+      });
+    }
+
+    document.querySelectorAll("[data-mp-rps]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (!acceptedInvite) { return; }
+        playerAction({ type: "rps-pick", choice: btn.dataset.mpRps, fromId: myId });
+      });
+    });
   }
 
   window.addEventListener("beforeunload", function () {

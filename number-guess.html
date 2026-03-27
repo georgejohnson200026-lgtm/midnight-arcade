@@ -39,6 +39,13 @@
           <a class="sidebar-link" href="tic-tac-toe.html">Multiplayer</a>
         </nav>
 
+        <div class="multiplayer-account">
+          <p class="account-label">Multiplayer Name</p>
+          <p id="account-display-name" class="account-name">Loading...</p>
+          <button id="account-change-name-btn" class="account-btn" type="button">Change Name</button>
+          <button id="account-create-btn" class="account-btn" type="button">Create Account</button>
+        </div>
+
         <button class="sidebar-settings" type="button">Settings</button>
       </aside>
 
@@ -50,18 +57,71 @@
           <a class="back-link" href="index.html">Back to homepage</a>
         </header>
 
-        <main class="games-grid single-game-grid">
-          <section class="game-card" id="guess-game">
-            <h2>Number Guess</h2>
-            <p class="game-description">Guess the secret number between 1 and 100.</p>
-            <div class="guess-controls">
-              <input id="guess-input" type="number" min="1" max="100" placeholder="Enter number" />
-              <button id="guess-btn">Guess</button>
-              <button id="reset-guess-btn" class="ghost-btn">New Round</button>
+        <main class="game-page-layout">
+          <div class="mode-tabs">
+            <button class="mode-tab active" data-tab="solo">Solo</button>
+            <button class="mode-tab" data-tab="multi">Multiplayer</button>
+          </div>
+
+          <div class="tab-panel" id="tab-solo">
+            <section class="game-card" id="guess-game">
+              <h2>Number Guess</h2>
+              <p class="game-description">Guess the secret number between 1 and 100.</p>
+              <div class="guess-controls">
+                <input id="guess-input" type="number" min="1" max="100" placeholder="Enter number" />
+                <button id="guess-btn">Guess</button>
+                <button id="reset-guess-btn" class="ghost-btn">New Round</button>
+              </div>
+              <p id="guess-feedback" class="status-text">Start guessing.</p>
+              <p id="guess-attempts" class="meta-text">Attempts: 0</p>
+            </section>
+          </div>
+
+          <div class="tab-panel hidden" id="tab-multi">
+            <div class="mp-two-col">
+              <section class="game-card multiplayer-card" id="mp-ng-wrap">
+                <h2>Number Guess Multiplayer</h2>
+                <p id="mp-ng-status" class="status-text">Accept invite to join this multiplayer room.</p>
+                <div class="mp-room-actions">
+                  <button id="mp-ng-start-btn" type="button">Start First Game</button>
+                </div>
+                <div class="guess-controls">
+                  <input id="mp-ng-input" type="number" min="1" max="100" placeholder="Enter guess 1-100" />
+                  <button id="mp-ng-guess-btn" type="button">Submit Guess</button>
+                  <p id="mp-ng-score" class="meta-text">Scoreboard: No rounds won yet.</p>
+                </div>
+                <p id="mp-ng-history" class="meta-text">Guess log appears here.</p>
+              </section>
+
+              <section class="game-card multiplayer-card">
+                <h2>Room</h2>
+                <p id="mp-room-meta" class="meta-text">No multiplayer room yet.</p>
+                <p id="mp-room-status" class="status-text">Create an invite link for the game you want to play.</p>
+                <div class="mp-room-actions">
+                  <button id="mp-create-invite-btn" type="button">Create Invite Link</button>
+                  <button id="mp-copy-invite-btn" class="ghost-btn" type="button">Copy Link</button>
+                  <button id="mp-accept-invite-btn" class="ghost-btn" type="button">Accept Invite</button>
+                </div>
+                <input id="mp-invite-link" type="text" readonly placeholder="Invite link appears here" />
+                <div class="mp-switch-links">
+                  <a data-room-switch="number-guess.html" href="number-guess.html">Stay in Number Guess</a>
+                  <a data-room-switch="rock-paper-scissors.html" href="rock-paper-scissors.html">Switch to Rock Paper Scissors</a>
+                  <a data-room-switch="hangman.html" href="hangman.html">Switch to Hangman</a>
+                  <a data-room-switch="tic-tac-toe.html" href="tic-tac-toe.html">Switch to Tic-Tac-Toe</a>
+                </div>
+              </section>
             </div>
-            <p id="guess-feedback" class="status-text">Start guessing.</p>
-            <p id="guess-attempts" class="meta-text">Attempts: 0</p>
-          </section>
+
+            <section class="game-card multiplayer-card mp-chat-full">
+              <h2>Room Chat Log</h2>
+              <p class="game-description">Messages follow you across multiplayer games in this room.</p>
+              <div id="mp-chat-log" class="mp-chat-log" aria-live="polite"></div>
+              <div class="mp-chat-actions">
+                <input id="mp-chat-input" type="text" maxlength="220" placeholder="Type a message" />
+                <button id="mp-chat-send-btn" type="button">Send</button>
+              </div>
+            </section>
+          </div>
         </main>
 
         <footer class="site-footer">
@@ -71,5 +131,7 @@
     </div>
 
     <script src="script.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="multiplayer.js"></script>
   </body>
 </html>
