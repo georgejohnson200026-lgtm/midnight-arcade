@@ -2399,11 +2399,11 @@ if (taxiCanvas) {
   }
 
   function isCrazyMode() {
-    return taxiState.mode === "crazy";
+    return taxiState.mode === "crazy" || taxiState.mode === "crazy-dark";
   }
 
   function isNightMode() {
-    return taxiState.mode === "night";
+    return taxiState.mode === "night" || taxiState.mode === "crazy-dark";
   }
 
   function isPoliceChaseActive() {
@@ -2413,6 +2413,7 @@ if (taxiCanvas) {
   function modeLabel(mode) {
     if (mode === "night") return "Night";
     if (mode === "crazy") return "Crazy";
+    if (mode === "crazy-dark") return "Crazy Dark";
     return "Day";
   }
 
@@ -2444,7 +2445,7 @@ if (taxiCanvas) {
   }
 
   function selectTaxiMode(mode) {
-    taxiState.mode = ["day", "night", "crazy"].includes(mode) ? mode : "day";
+    taxiState.mode = ["day", "night", "crazy", "crazy-dark"].includes(mode) ? mode : "day";
     taxiState.modeSelected = true;
     if (taxiModeScreen) {
       taxiModeScreen.classList.add("hidden");
@@ -2831,11 +2832,13 @@ if (taxiCanvas) {
         car.depth += Math.max(0, (worldSpeed - car.speed + 14) / 170) * deltaTime;
       });
 
-      if (isCrazyMode() && !isPoliceChaseActive()) {
-        taxiState.pedestrianTimer -= deltaTime;
-        if (taxiState.pedestrianTimer <= 0 && taxiState.pedestrians.length < 1 && worldSpeed > 0) {
-          spawnPedestrian();
-          taxiState.pedestrianTimer = randomBetween(1.6, 2.9);
+      if (isCrazyMode()) {
+        if (!isPoliceChaseActive()) {
+          taxiState.pedestrianTimer -= deltaTime;
+          if (taxiState.pedestrianTimer <= 0 && taxiState.pedestrians.length < 1 && worldSpeed > 0) {
+            spawnPedestrian();
+            taxiState.pedestrianTimer = randomBetween(1.6, 2.9);
+          }
         }
 
         taxiState.pedestrians.forEach((person) => {
@@ -3415,7 +3418,7 @@ if (taxiCanvas) {
     const depth = clamp(person.depth, 0.08, 0.98);
     const y = screenYForDepth(depth);
     const x = laneCenterAtDepth(person.lane, depth);
-    const scale = lerp(0.36, 1.44, depth);
+    const scale = lerp(0.54, 2.16, depth);
     const sway = person.hit ? 0 : Math.sin((Date.now() / 200) + person.sway) * 2.5;
 
     const modelColors = {
