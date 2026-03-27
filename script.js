@@ -348,12 +348,13 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   }
 
   const pieceGlyphs = {
-    wK: "\u2654",
-    wQ: "\u2655",
-    wR: "\u2656",
-    wB: "\u2657",
-    wN: "\u2658",
-    wP: "\u2659",
+    // Use filled glyph shapes for both sides; color differentiates white vs black clearly.
+    wK: "\u265A",
+    wQ: "\u265B",
+    wR: "\u265C",
+    wB: "\u265D",
+    wN: "\u265E",
+    wP: "\u265F",
     bK: "\u265A",
     bQ: "\u265B",
     bR: "\u265C",
