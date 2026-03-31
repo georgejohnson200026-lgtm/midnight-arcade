@@ -840,7 +840,7 @@
         }
 
         if (key.length !== 1) return;
-        if (typedIndex >= currentSentence.length) return;
+        if (typedIndex >= chars.length) return;
 
         const expected = chars[typedIndex].char;
         const oldIdx = typedIndex;
