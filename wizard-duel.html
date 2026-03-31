@@ -836,7 +836,9 @@ import * as THREE from './vendor/three.module.js';
     localPeerId: fallbackClientId,
     lastStateSentAt: 0,
     lastSnapshotAt: 0,
-    reconnectHandle: null
+    reconnectHandle: null,
+    lastSnapshotReceivedAt: 0,
+    lastHostAttemptAt: 0
   };
 
   const friendsUi = {
@@ -1171,6 +1173,12 @@ import * as THREE from './vendor/three.module.js';
   }
 
   function startAsHost() {
+    if (coop.peer && coop.mode === 'guest') {
+      try { coop.peer.destroy(); } catch (_e) { }
+      coop.peer = null;
+    }
+    coop.hostConn = null;
+    coop.guestConns = [];
     coop.mode = 'host';
     coop.peer = new window.Peer(GLOBAL_LOBBY_ID);
     coop.peer.on('open', (id) => {
@@ -1198,6 +1206,19 @@ import * as THREE from './vendor/three.module.js';
     }, 1200);
   }
 
+  function attemptHostTakeover(reason) {
+    if (coop.mode !== 'guest') return;
+    const now = Date.now();
+    if (now - coop.lastHostAttemptAt < 6000) return;
+    coop.lastHostAttemptAt = now;
+    setCoopStatus('Recovering global multiplayer (' + reason + ')...', true);
+    try {
+      if (coop.hostConn) coop.hostConn.close();
+    } catch (_e) { }
+    coop.hostConn = null;
+    startAsHost();
+  }
+
   function connectGuestToHost() {
     if (!coop.peer) return;
     if (coop.hostConn && coop.hostConn.open) return;
@@ -1205,10 +1226,12 @@ import * as THREE from './vendor/three.module.js';
     coop.hostConn = conn;
     conn.on('open', () => {
       setCoopStatus('Connected to global multiplayer. You should see other players automatically.', false);
+      coop.lastSnapshotReceivedAt = Date.now();
     });
     conn.on('data', (msg) => {
       if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'snapshot' && Array.isArray(msg.players)) {
+        coop.lastSnapshotReceivedAt = Date.now();
         const seen = new Set();
         msg.players.forEach(p => {
           const parsed = sanitizeRemoteState(p);
@@ -1233,10 +1256,12 @@ import * as THREE from './vendor/three.module.js';
     conn.on('close', () => {
       setCoopStatus('Global server unavailable. Reconnecting...', true);
       clearCoopRemotes();
+      coop.lastSnapshotReceivedAt = 0;
       scheduleReconnect();
     });
     conn.on('error', () => {
       setCoopStatus('Global server unavailable. Reconnecting...', true);
+      coop.lastSnapshotReceivedAt = 0;
       scheduleReconnect();
     });
   }
@@ -1246,6 +1271,8 @@ import * as THREE from './vendor/three.module.js';
       try { coop.peer.destroy(); } catch (_e) { }
       coop.peer = null;
     }
+    coop.hostConn = null;
+    coop.guestConns = [];
     coop.mode = 'guest';
     coop.peer = new window.Peer();
     coop.peer.on('open', (id) => {
@@ -1274,6 +1301,15 @@ import * as THREE from './vendor/three.module.js';
 
   function tickCoopNetwork() {
     if (!coop.started) return;
+
+    if (coop.mode === 'guest') {
+      const nowMs = Date.now();
+      if (!coop.hostConn || !coop.hostConn.open) {
+        attemptHostTakeover('no host connection');
+      } else if (coop.lastSnapshotReceivedAt > 0 && nowMs - coop.lastSnapshotReceivedAt > 7000) {
+        attemptHostTakeover('stale host heartbeat');
+      }
+    }
 
     const now = performance.now();
     if (now - coop.lastStateSentAt < 120) {
