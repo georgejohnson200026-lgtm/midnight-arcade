@@ -58,40 +58,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #070b12; c
   color: #f3d98a;
 }
 
-.coop-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-#coop-room-input {
-  flex: 1 1 240px;
-  min-width: 180px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  background: #101830;
-  color: #e8eeff;
-}
-
-.coop-btn {
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 8px;
-  background: #1d2851;
-  color: #dfe8ff;
-  padding: 8px 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.coop-btn:hover {
-  border-color: #7fa2ff;
-}
-
-#coop-copy-link-btn {
-  background: #224b2d;
-}
-
 #coop-status {
   font-size: 0.82rem;
   color: #bfcde8;
@@ -339,15 +305,9 @@ body.wand-cursor, body.wand-cursor * {
     <button class="school-btn" data-school="Myth">Myth</button>
     <button class="school-btn" data-school="Balance">Balance</button>
   </div>
-  <div id="coop-panel" aria-label="Multiplayer room controls">
-    <h3>Two-Player Crossplay</h3>
-    <div class="coop-row">
-      <input id="coop-room-input" type="text" placeholder="Room ID (leave empty and host to create one)">
-      <button id="coop-host-btn" class="coop-btn" type="button">Host Room</button>
-      <button id="coop-join-btn" class="coop-btn" type="button">Join Room</button>
-      <button id="coop-copy-link-btn" class="coop-btn" type="button">Copy Invite Link</button>
-    </div>
-    <p id="coop-status">Multiplayer is optional. Host to create a room, or paste a room ID and join.</p>
+  <div id="coop-panel" aria-label="Automatic global multiplayer status">
+    <h3>Global Multiplayer</h3>
+    <p id="coop-status">Everyone on the live page connects automatically. No room code or invite is needed.</p>
   </div>
   <button id="begin-btn" disabled>Begin Adventure</button>
 </div>
@@ -703,29 +663,24 @@ import * as THREE from './vendor/three.module.js';
     ui: { wandCursor: false }
   };
 
-  const coopRoomInput = document.getElementById('coop-room-input');
-  const coopHostBtn = document.getElementById('coop-host-btn');
-  const coopJoinBtn = document.getElementById('coop-join-btn');
-  const coopCopyLinkBtn = document.getElementById('coop-copy-link-btn');
   const coopStatusEl = document.getElementById('coop-status');
+  const GLOBAL_LOBBY_ID = 'wizard-duel-global-lobby-v1';
 
   const COOP_ID_KEY = 'wizardDuelClientId';
   const fallbackClientId = localStorage.getItem(COOP_ID_KEY) || ('wiz-' + Math.random().toString(36).slice(2, 10));
   localStorage.setItem(COOP_ID_KEY, fallbackClientId);
 
   const coop = {
-    pendingMode: 'off',
-    pendingRoomId: '',
     started: false,
-    mode: 'off',
+    mode: 'offline',
     peer: null,
     hostConn: null,
     guestConns: [],
     remoteById: new Map(),
     localPeerId: fallbackClientId,
-    roomId: '',
     lastStateSentAt: 0,
-    lastSnapshotAt: 0
+    lastSnapshotAt: 0,
+    reconnectHandle: null
   };
 
   window.WIZARD_COOP_PLAYERS = [];
@@ -787,7 +742,7 @@ import * as THREE from './vendor/three.module.js';
     if (!conn) return;
     coop.guestConns.push(conn);
     conn.on('open', () => {
-      setCoopStatus('Guest connected. Room is live for crossplay.', false);
+      setCoopStatus('A wizard joined the global server.', false);
     });
     conn.on('data', (msg) => {
       if (!msg || typeof msg !== 'object') return;
@@ -806,93 +761,93 @@ import * as THREE from './vendor/three.module.js';
     });
   }
 
-  function startHostRoom() {
+  function startAsHost() {
     coop.mode = 'host';
-    coop.peer = new window.Peer();
+    coop.peer = new window.Peer(GLOBAL_LOBBY_ID);
     coop.peer.on('open', (id) => {
       coop.localPeerId = id;
-      coop.roomId = id;
-      coopRoomInput.value = id;
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', id);
-      history.replaceState({}, '', url.toString());
-      setCoopStatus('Hosting room ' + id + '. Share the invite link and have your friend press Join Room.', false);
+      setCoopStatus('Global multiplayer server is active. Players now auto-join.', false);
     });
     coop.peer.on('connection', (conn) => {
       attachGuestConnection(conn);
     });
     coop.peer.on('error', (err) => {
-      setCoopStatus('Host error: ' + (err && err.message ? err.message : 'PeerJS failed'), true);
+      if (err && err.type === 'unavailable-id') {
+        startAsGuest();
+        return;
+      }
+      setCoopStatus('Global server error: ' + (err && err.message ? err.message : 'PeerJS failed'), true);
     });
   }
 
-  function startJoinRoom(roomId) {
-    coop.mode = 'join';
-    coop.roomId = roomId;
+  function scheduleReconnect() {
+    if (coop.reconnectHandle) return;
+    coop.reconnectHandle = setTimeout(() => {
+      coop.reconnectHandle = null;
+      if (coop.mode !== 'guest') return;
+      connectGuestToHost();
+    }, 1200);
+  }
+
+  function connectGuestToHost() {
+    if (!coop.peer) return;
+    if (coop.hostConn && coop.hostConn.open) return;
+    const conn = coop.peer.connect(GLOBAL_LOBBY_ID, { reliable: true });
+    coop.hostConn = conn;
+    conn.on('open', () => {
+      setCoopStatus('Connected to global multiplayer. You should see other players automatically.', false);
+    });
+    conn.on('data', (msg) => {
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type !== 'snapshot' || !Array.isArray(msg.players)) return;
+      const remotes = [];
+      msg.players.forEach(p => {
+        const parsed = sanitizeRemoteState(p);
+        if (parsed && parsed.id !== coop.localPeerId) remotes.push(parsed);
+      });
+      clearCoopRemotes();
+      remotes.forEach(p => coop.remoteById.set(p.id, p));
+    });
+    conn.on('close', () => {
+      setCoopStatus('Global server unavailable. Reconnecting...', true);
+      clearCoopRemotes();
+      scheduleReconnect();
+    });
+    conn.on('error', () => {
+      setCoopStatus('Global server unavailable. Reconnecting...', true);
+      scheduleReconnect();
+    });
+  }
+
+  function startAsGuest() {
+    if (coop.peer) {
+      try { coop.peer.destroy(); } catch (_e) { }
+      coop.peer = null;
+    }
+    coop.mode = 'guest';
     coop.peer = new window.Peer();
     coop.peer.on('open', (id) => {
       coop.localPeerId = id;
-      const conn = coop.peer.connect(roomId, { reliable: true });
-      coop.hostConn = conn;
-      conn.on('open', () => {
-        setCoopStatus('Connected to room ' + roomId + '. You should now see each other in-game.', false);
-      });
-      conn.on('data', (msg) => {
-        if (!msg || typeof msg !== 'object') return;
-        if (msg.type !== 'snapshot' || !Array.isArray(msg.players)) return;
-        const remotes = [];
-        msg.players.forEach(p => {
-          const parsed = sanitizeRemoteState(p);
-          if (parsed && parsed.id !== coop.localPeerId) remotes.push(parsed);
-        });
-        clearCoopRemotes();
-        remotes.forEach(p => coop.remoteById.set(p.id, p));
-      });
-      conn.on('close', () => {
-        setCoopStatus('Disconnected from host room.', true);
-        clearCoopRemotes();
-      });
-      conn.on('error', (err) => {
-        setCoopStatus('Join connection error: ' + (err && err.message ? err.message : 'unknown error'), true);
-      });
+      connectGuestToHost();
     });
     coop.peer.on('error', (err) => {
-      setCoopStatus('Join setup error: ' + (err && err.message ? err.message : 'PeerJS failed'), true);
+      setCoopStatus('Global client error: ' + (err && err.message ? err.message : 'PeerJS failed'), true);
+      scheduleReconnect();
     });
   }
 
-  function beginCoopIfNeeded() {
+  function beginAutoCoop() {
     if (coop.started) return;
 
-    const roomFromUrl = (new URL(window.location.href)).searchParams.get('room');
-    if (coop.pendingMode === 'join' && !coop.pendingRoomId) {
-      setCoopStatus('Paste a room ID before joining.', true);
-      return;
-    }
-
-    let mode = coop.pendingMode;
-    let roomId = coop.pendingRoomId;
-    if (mode === 'off' && roomFromUrl) {
-      mode = 'join';
-      roomId = roomFromUrl;
-      coopRoomInput.value = roomId;
-    }
-
-    if (mode === 'off') {
-      setCoopStatus('Single-player mode active. Use Host Room or Join Room for crossplay.', false);
-      return;
-    }
-
     if (typeof window.Peer === 'undefined') {
-      setCoopStatus('PeerJS failed to load. Multiplayer is unavailable.', true);
+      setCoopStatus('Global multiplayer failed to load (PeerJS unavailable).', true);
       return;
     }
 
     coop.started = true;
     clearCoopRemotes();
-
-    if (mode === 'host') startHostRoom();
-    else startJoinRoom(roomId);
+    setCoopStatus('Connecting to global multiplayer...', false);
+    startAsHost();
   }
 
   function tickCoopNetwork() {
@@ -932,9 +887,23 @@ import * as THREE from './vendor/three.module.js';
       try {
         coop.hostConn.send({ type: 'state', player: myState });
       } catch (_e) { }
+    } else if (coop.mode === 'guest') {
+      scheduleReconnect();
     }
     publishExternalPlayers(Array.from(coop.remoteById.values()));
   }
+
+  window.addEventListener('beforeunload', () => {
+    if (coop.reconnectHandle) {
+      clearTimeout(coop.reconnectHandle);
+      coop.reconnectHandle = null;
+    }
+    try {
+      if (coop.hostConn) coop.hostConn.close();
+      coop.guestConns.forEach(conn => conn && conn.close && conn.close());
+      if (coop.peer) coop.peer.destroy();
+    } catch (_e) { }
+  });
 
   function ensureUniversalPlayerState(p) {
     if (!p) return;
@@ -5705,58 +5674,7 @@ import * as THREE from './vendor/three.module.js';
     document.getElementById('begin-btn').disabled = !(hasName && hasSchool);
   }
 
-  if (coopHostBtn) {
-    coopHostBtn.addEventListener('click', () => {
-      coop.pendingMode = 'host';
-      coop.pendingRoomId = '';
-      const url = new URL(window.location.href);
-      url.searchParams.delete('room');
-      history.replaceState({}, '', url.toString());
-      setCoopStatus('Host selected. Press Begin Adventure, then share your room ID or invite link.', false);
-    });
-  }
-
-  if (coopJoinBtn) {
-    coopJoinBtn.addEventListener('click', () => {
-      const room = (coopRoomInput.value || '').trim();
-      if (!room) {
-        setCoopStatus('Paste a room ID to join.', true);
-        return;
-      }
-      coop.pendingMode = 'join';
-      coop.pendingRoomId = room;
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', room);
-      history.replaceState({}, '', url.toString());
-      setCoopStatus('Join selected for room ' + room + '. Press Begin Adventure to connect.', false);
-    });
-  }
-
-  if (coopCopyLinkBtn) {
-    coopCopyLinkBtn.addEventListener('click', async () => {
-      const room = (coop.roomId || coopRoomInput.value || '').trim();
-      if (!room) {
-        setCoopStatus('No room ID yet. Host a room first or paste one.', true);
-        return;
-      }
-      const invite = new URL(window.location.href);
-      invite.searchParams.set('room', room);
-      try {
-        await navigator.clipboard.writeText(invite.toString());
-        setCoopStatus('Invite link copied. Send it to your friend.', false);
-      } catch (_e) {
-        setCoopStatus('Could not copy automatically. Share this room ID: ' + room, true);
-      }
-    });
-  }
-
-  const initialRoom = (new URL(window.location.href)).searchParams.get('room');
-  if (initialRoom && coopRoomInput) {
-    coopRoomInput.value = initialRoom;
-    coop.pendingMode = 'join';
-    coop.pendingRoomId = initialRoom;
-    setCoopStatus('Invite link detected. Press Begin Adventure to join room ' + initialRoom + '.', false);
-  }
+  setCoopStatus('Global multiplayer will auto-connect when you start.', false);
 
   document.getElementById('begin-btn').addEventListener('click', () => {
     const name = document.getElementById('name-input').value.trim();
@@ -5793,7 +5711,7 @@ import * as THREE from './vendor/three.module.js';
 
   function launchGame() {
     ensureUniversalPlayerState(state.player);
-    beginCoopIfNeeded();
+    beginAutoCoop();
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('game-wrap').style.display = 'block';
     document.getElementById('zone-title').textContent = ZONES[state.zone].name;
