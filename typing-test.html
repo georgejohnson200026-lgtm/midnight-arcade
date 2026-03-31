@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Typing Test | Midnight Arcade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bungee:wght@400&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      /* ── Typing Test specific styles ── */
+      .typing-card {
+        max-width: 780px;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      .typing-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .typing-toolbar .select-wrap {
+        flex: 1 1 140px;
+      }
+
+      /* Stats bar */
+      .typing-stats {
+        display: flex;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.25rem;
+      }
+
+      .typing-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: var(--panel-soft);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.55rem 1.1rem;
+        min-width: 80px;
+      }
+
+      .typing-stat-value {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--accent);
+        line-height: 1;
+      }
+
+      .typing-stat-label {
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-top: 0.2rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      /* Timer colour states */
+      .typing-stat-value.warn { color: var(--accent-2); }
+      .typing-stat-value.danger { color: var(--danger); }
+
+      /* Sentence display */
+      .typing-display {
+        position: relative;
+        background: var(--panel-soft);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.6rem 1.8rem 1.6rem;
+        margin-bottom: 1.25rem;
+        font-size: 1.35rem;
+        font-family: "Space Grotesk", monospace;
+        letter-spacing: 0.03em;
+        line-height: 1.8;
+        min-height: 12rem;
+        cursor: text;
+        user-select: none;
+      }
+
+      .typing-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+      }
+
+      .typing-line {
+        min-height: 1.8em;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .typing-line-preview {
+        color: #5f6780;
+      }
+
+      .typing-line-active {
+        color: #4a5470;
+      }
+
+      .typing-char {
+        color: #4a5470;   /* untyped – dark grey */
+        transition: color 0.06s;
+        position: relative;
+      }
+
+      .typing-char.correct  { color: #e8edf8; }
+      .typing-char.incorrect { color: #ff6f87; }
+
+      /* Cursor bar */
+      .typing-char.cursor::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: -2px;
+        width: 100%;
+        height: 2px;
+        background: var(--accent);
+        border-radius: 2px;
+        animation: blink 0.9s step-end infinite;
+      }
+
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50%  { opacity: 0; }
+      }
+
+      /* Hidden real input */
+      .typing-input-hidden {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+      }
+
+      /* Result overlay */
+      .typing-result {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        background: var(--panel-soft);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 2rem 1.8rem;
+        margin-bottom: 1.25rem;
+        text-align: center;
+      }
+
+      .typing-result.visible { display: flex; }
+
+      .typing-result h3 {
+        margin: 0;
+        font-size: 1.4rem;
+        color: var(--accent);
+      }
+
+      .result-stats {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .result-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 90px;
+      }
+
+      .result-stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .result-stat-label {
+        font-size: 0.72rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      /* Action buttons row */
+      .typing-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .typing-actions button {
+        padding: 0.55rem 1.2rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-soft);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+      }
+
+      .typing-actions button:hover { background: var(--panel); border-color: var(--accent); }
+      .typing-actions button.primary-btn {
+        background: var(--accent);
+        color: #07090f;
+        border-color: var(--accent);
+        font-weight: 700;
+      }
+      .typing-actions button.primary-btn:hover { opacity: 0.88; }
+
+      /* Progress bar */
+      .typing-progress-bar {
+        height: 4px;
+        background: var(--border);
+        border-radius: 2px;
+        margin-bottom: 1rem;
+        overflow: hidden;
+      }
+
+      .typing-progress-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 2px;
+        width: 0%;
+        transition: width 0.1s;
+      }
+
+      /* Difficulty badge */
+      .diff-easy   { color: var(--accent); }
+      .diff-medium { color: var(--accent-2); }
+      .diff-hard   { color: var(--danger); }
+
+      /* Light mode adjustments */
+      body.light-mode .typing-char { color: #b0b8cc; }
+      body.light-mode .typing-char.correct { color: #172231; }
+      body.light-mode .typing-line-preview { color: #98a4bd; }
+      body.light-mode .typing-display,
+      body.light-mode .typing-stat,
+      body.light-mode .typing-result {
+        background: rgba(255,255,255,0.88);
+        border-color: rgba(40,70,110,0.2);
+      }
+    </style>
+  </head>
+  <body id="top" data-page="typing-test">
+    <div class="orb orb-left" aria-hidden="true"></div>
+    <div class="orb orb-right" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="sidebar-mark">MA</span>
+          <div>
+            <p class="sidebar-title">Midnight Arcade</p>
+            <p class="sidebar-subtitle">Game Room</p>
+          </div>
+        </div>
+
+        <div class="sidebar-account">
+          <p class="account-label">Account</p>
+          <button id="sidebar-login-btn" class="sidebar-account-btn" type="button">Login</button>
+          <div id="sidebar-user-info" class="sidebar-user-info hidden">
+            <p id="sidebar-username" class="sidebar-username">User</p>
+            <button id="sidebar-logout-btn" class="sidebar-account-btn ghost-btn" type="button">Logout</button>
+          </div>
+        </div>
+
+        <label class="sidebar-search" for="sidebar-search-input">
+          <span>Search</span>
+          <input id="sidebar-search-input" type="search" placeholder="Search games" />
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Homepage navigation">
+          <a class="sidebar-link" href="index.html">Home</a>
+          <a class="sidebar-link" data-favorites-link href="favorite-games.html">Favorite Games</a>
+          <a class="sidebar-link" href="crazy-taxi.html">Skilled Games</a>
+          <a class="sidebar-link" href="tic-tac-toe.html">Multiplayer</a>
+        </nav>
+
+        <button class="sidebar-settings" type="button">Settings</button>
+        <div id="settings-panel" class="settings-panel hidden">
+          <div class="settings-content">
+            <div class="settings-header">
+              <h2>Settings</h2>
+              <button id="settings-close" class="settings-close" type="button">✕</button>
+            </div>
+            <div class="settings-body">
+              <div class="settings-group">
+                <label class="settings-item">
+                  <span>Light Mode</span>
+                  <input id="light-mode-toggle" type="checkbox" />
+                </label>
+              </div>
+              <div class="settings-group">
+                <p class="settings-label">Game Volume</p>
+                <label class="settings-item">
+                  <span>Master Volume</span>
+                  <input id="volume-slider" type="range" min="0" max="100" value="70" />
+                </label>
+                <p id="volume-display" class="volume-display">70%</p>
+              </div>
+              <div class="settings-group">
+                <p class="settings-label">Account</p>
+                <div class="settings-actions">
+                  <button id="settings-auth-btn" class="settings-action-btn" type="button">Login</button>
+                  <button id="settings-delete-account-btn" class="settings-action-btn danger-btn" type="button">Delete Account</button>
+                </div>
+                <p id="settings-account-status" class="status-text">Not signed in.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="settings-delete-confirm" class="settings-confirmation hidden" role="dialog" aria-modal="true" aria-labelledby="settings-delete-title">
+          <div class="settings-confirmation-card">
+            <h3 id="settings-delete-title">Delete Account?</h3>
+            <p>This permanently removes your account from this browser.</p>
+            <div class="settings-actions">
+              <button id="settings-cancel-delete-btn" class="settings-action-btn ghost-btn" type="button">Cancel</button>
+              <button id="settings-confirm-delete-btn" class="settings-action-btn danger-btn" type="button">Yes, delete it</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="page-content">
+        <header class="hero page-hero">
+          <p class="eyebrow">Speed Challenge</p>
+          <h1>Typing Test</h1>
+          <p class="subtitle">Type each sentence as fast and accurately as you can. Letters turn white when correct, red when wrong.</p>
+          <a class="back-link" href="index.html">Back to homepage</a>
+        </header>
+
+        <main class="game-page-layout">
+          <section class="game-card typing-card" id="typing-game">
+
+            <!-- Toolbar -->
+            <div class="typing-toolbar">
+              <label class="select-wrap" for="typing-difficulty">
+                <span>Difficulty</span>
+                <select id="typing-difficulty">
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </label>
+              <label class="select-wrap" for="typing-time-limit">
+                <span>Time Limit</span>
+                <select id="typing-time-limit">
+                  <option value="30">30 seconds</option>
+                  <option value="60" selected>60 seconds</option>
+                  <option value="90">90 seconds</option>
+                  <option value="120">2 minutes</option>
+                </select>
+              </label>
+            </div>
+
+            <!-- Live stats -->
+            <div class="typing-stats" aria-label="Live stats" aria-live="polite">
+              <div class="typing-stat">
+                <span class="typing-stat-value" id="stat-wpm">0</span>
+                <span class="typing-stat-label">WPM</span>
+              </div>
+              <div class="typing-stat">
+                <span class="typing-stat-value" id="stat-accuracy">–</span>
+                <span class="typing-stat-label">Accuracy</span>
+              </div>
+              <div class="typing-stat">
+                <span class="typing-stat-value" id="stat-timer">60</span>
+                <span class="typing-stat-label">Seconds</span>
+              </div>
+              <div class="typing-stat">
+                <span class="typing-stat-value" id="stat-streak">0</span>
+                <span class="typing-stat-label">Streak</span>
+              </div>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="typing-progress-bar" role="progressbar" aria-label="Sentence progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="typing-progress-bar">
+              <div class="typing-progress-fill" id="typing-progress-fill"></div>
+            </div>
+
+            <!-- Sentence display -->
+            <div class="typing-display" id="typing-display" aria-label="Type the sentence shown here" tabindex="0">
+              <div class="typing-lines" id="typing-lines">
+                <div class="typing-line typing-line-active" id="typing-current-line"></div>
+                <div class="typing-line typing-line-preview" id="typing-next-line-1"></div>
+                <div class="typing-line typing-line-preview" id="typing-next-line-2"></div>
+                <div class="typing-line typing-line-preview" id="typing-next-line-3"></div>
+              </div>
+            </div>
+
+            <!-- Hidden real input that captures keystrokes -->
+            <input
+              class="typing-input-hidden"
+              id="typing-input"
+              type="text"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              aria-hidden="true"
+              tabindex="-1"
+            />
+
+            <!-- Result overlay -->
+            <div class="typing-result" id="typing-result" aria-live="assertive">
+              <h3 id="result-heading">Round Complete!</h3>
+              <div class="result-stats">
+                <div class="result-stat">
+                  <span class="result-stat-value" id="result-wpm">0</span>
+                  <span class="result-stat-label">WPM</span>
+                </div>
+                <div class="result-stat">
+                  <span class="result-stat-value" id="result-accuracy">0%</span>
+                  <span class="result-stat-label">Accuracy</span>
+                </div>
+                <div class="result-stat">
+                  <span class="result-stat-value" id="result-correct">0</span>
+                  <span class="result-stat-label">Correct chars</span>
+                </div>
+                <div class="result-stat">
+                  <span class="result-stat-value" id="result-errors">0</span>
+                  <span class="result-stat-label">Errors</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="typing-actions">
+              <button class="primary-btn" id="typing-restart-btn" type="button">New Test</button>
+              <button id="typing-skip-btn" type="button">Skip Sentence</button>
+              <span id="typing-hint" class="meta-text" style="margin-left:auto;">Click the text area to start typing</span>
+            </div>
+
+          </section>
+        </main>
+
+        <footer class="site-footer">
+          <p>Midnight Arcade • Dark mode by default</p>
+        </footer>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+    /* ════════════════════════════════════════════════
+       Typing Test – full game logic
+    ════════════════════════════════════════════════ */
+    (function () {
+      "use strict";
+
+      let _audioCtx = null;
+      function getAudioCtx() {
+        if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return _audioCtx;
+      }
+
+      function playTone(freq, type, duration, volume) {
+        try {
+          const ctx = getAudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const masterVol = parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue("--master-volume") || "0.7"
+          );
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          gain.gain.setValueAtTime((volume || 0.08) * masterVol, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + duration);
+        } catch (_e) { }
+      }
+
+      function soundCorrect()   { playTone(700,  "sine",     0.06, 0.07); }
+      function soundIncorrect() { playTone(180,  "sawtooth", 0.08, 0.06); }
+      function soundComplete()  {
+        playTone(660, "sine", 0.12, 0.1);
+        setTimeout(() => playTone(880, "sine", 0.12, 0.1), 130);
+        setTimeout(() => playTone(1100,"sine", 0.18, 0.1), 260);
+      }
+      function soundBackspace() { playTone(320,  "sine",    0.04, 0.04); }
+
+      const SENTENCES = {
+        easy: [
+          "the cat runs fast",
+          "i like to eat apples",
+          "we go to the park",
+          "this is a simple test",
+          "she has a big red ball",
+          "the dog runs in the yard",
+          "it is a nice sunny day",
+          "he can jump very high",
+          "my bike is over there",
+          "look at the blue sky",
+          "one fish two fish red fish",
+          "the cup is on the table",
+          "she reads a book every day",
+          "we walk to school each morning",
+          "the baby sleeps in the crib"
+        ],
+        medium: [
+          "the quick brown fox jumps over the lazy dog",
+          "practice makes perfect every single day",
+          "she sells sea shells by the sea shore",
+          "how much wood would a woodchuck chuck",
+          "the early bird always catches the worm",
+          "never stop learning new things in life",
+          "every journey begins with a single step",
+          "hard work and dedication always pay off",
+          "the stars look beautiful on a clear night",
+          "time flies when you are having fun",
+          "reading books expands your mind every day",
+          "the mountain trail was long but rewarding",
+          "sunrise over the ocean fills the soul",
+          "a good plan today beats a perfect one tomorrow",
+          "kind words cost nothing but mean everything"
+        ],
+        hard: [
+          "sphinx of black quartz judge my vow",
+          "five boxing wizards jump quickly at dawn",
+          "how vexingly quick daft zebras jump",
+          "the jazz musician played exotic waltzes",
+          "a quart jar of oil mixed with zinc",
+          "pack my box with five dozen liquor jugs",
+          "the job requires extra work from every plucky young employee",
+          "crazy fredrick bought many very exquisite opal jewels",
+          "we promptly judged antique ivory buckles for the next prize",
+          "a wizard quickly mixed the experimental brew",
+          "zephyrs blow quietly over the fjord",
+          "sixty zippers were quickly picked from the woven jute bag",
+          "my faxed joke won a pager in the cable tv quiz show",
+          "blowzy night frumps vex and quirk jag",
+          "jackdaws love my big sphinx of quartz"
+        ]
+      };
+
+      const displayEl      = document.getElementById("typing-display");
+      const currentLineEl  = document.getElementById("typing-current-line");
+      const nextLine1El    = document.getElementById("typing-next-line-1");
+      const nextLine2El    = document.getElementById("typing-next-line-2");
+      const nextLine3El    = document.getElementById("typing-next-line-3");
+      const inputEl        = document.getElementById("typing-input");
+      const restartBtn     = document.getElementById("typing-restart-btn");
+      const skipBtn        = document.getElementById("typing-skip-btn");
+      const hintEl         = document.getElementById("typing-hint");
+      const diffSelect     = document.getElementById("typing-difficulty");
+      const timeSelect     = document.getElementById("typing-time-limit");
+      const resultPanel    = document.getElementById("typing-result");
+      const resultHeading  = document.getElementById("result-heading");
+      const resultWpm      = document.getElementById("result-wpm");
+      const resultAccuracy = document.getElementById("result-accuracy");
+      const resultCorrect  = document.getElementById("result-correct");
+      const resultErrors   = document.getElementById("result-errors");
+      const statWpm        = document.getElementById("stat-wpm");
+      const statAccuracy   = document.getElementById("stat-accuracy");
+      const statTimer      = document.getElementById("stat-timer");
+      const statStreak     = document.getElementById("stat-streak");
+      const progressFill   = document.getElementById("typing-progress-fill");
+      const progressBar    = document.getElementById("typing-progress-bar");
+
+      let currentSentence  = "";
+      let chars            = [];
+      let typedIndex       = 0;
+      let sentenceQueue    = [];
+      let lastPicked       = "";
+      let streak           = 0;
+      let timerInterval    = null;
+      let sessionStarted   = false;
+      let sessionOver      = false;
+      let secondsLeft      = 60;
+      let sessionCorrect   = 0;
+      let sessionErrors    = 0;
+      let gameStartTime    = null;
+
+      function getDifficulty() { return diffSelect.value; }
+      function getTimeLimit()  { return parseInt(timeSelect.value, 10); }
+      function capitalizeStart(text) {
+        if (!text) return text;
+        return text.charAt(0).toUpperCase() + text.slice(1);
+      }
+
+      function pickSentence() {
+        const pool = SENTENCES[getDifficulty()];
+        let selected;
+        do {
+          selected = capitalizeStart(pool[Math.floor(Math.random() * pool.length)]);
+        } while (selected === lastPicked && pool.length > 1);
+        lastPicked = selected;
+        return selected;
+      }
+
+      function renderCurrentLine() {
+        currentLineEl.innerHTML = "";
+        chars.forEach((c, i) => {
+          const span = document.createElement("span");
+          span.textContent = c.char;
+          span.className = "typing-char" + (c.status !== "default" ? " " + c.status : "");
+          if (i === typedIndex && !sessionOver) span.classList.add("cursor");
+          currentLineEl.appendChild(span);
+        });
+      }
+
+      function renderQueue() {
+        renderCurrentLine();
+        nextLine1El.textContent = sentenceQueue[1] || "";
+        nextLine2El.textContent = sentenceQueue[2] || "";
+        nextLine3El.textContent = sentenceQueue[3] || "";
+      }
+
+      function updateCharSpan(index) {
+        const span = currentLineEl.children[index];
+        if (!span) return;
+        const c = chars[index];
+        span.className = "typing-char";
+        if (c.status !== "default") span.classList.add(c.status);
+        if (index === typedIndex && !sessionOver) span.classList.add("cursor");
+      }
+
+      function moveCursor(oldIdx, newIdx) {
+        const old = currentLineEl.children[oldIdx];
+        if (old) old.classList.remove("cursor");
+        const nw = currentLineEl.children[newIdx];
+        if (nw && !sessionOver) nw.classList.add("cursor");
+      }
+
+      function updateProgress() {
+        const pct = currentSentence.length ? (typedIndex / currentSentence.length) * 100 : 0;
+        progressFill.style.width = pct + "%";
+        progressBar.setAttribute("aria-valuenow", Math.round(pct));
+      }
+
+      function updateLiveStats() {
+        if (!gameStartTime) return;
+        const elapsed = (Date.now() - gameStartTime) / 1000 / 60;
+        const wpm = elapsed > 0 ? Math.round(sessionCorrect / 5 / elapsed) : 0;
+        statWpm.textContent = wpm;
+
+        const allTyped = sessionCorrect + sessionErrors;
+        statAccuracy.textContent = allTyped > 0
+          ? Math.round((sessionCorrect / allTyped) * 100) + "%"
+          : "–";
+        statStreak.textContent = streak;
+      }
+
+      function startTimer() {
+        secondsLeft = getTimeLimit();
+        statTimer.textContent = secondsLeft;
+        statTimer.className = "typing-stat-value";
+        gameStartTime = Date.now();
+
+        timerInterval = setInterval(() => {
+          secondsLeft--;
+          statTimer.textContent = secondsLeft;
+
+          if (secondsLeft <= 10) statTimer.className = "typing-stat-value danger";
+          else if (secondsLeft <= 20) statTimer.className = "typing-stat-value warn";
+
+          updateLiveStats();
+          if (secondsLeft <= 0) endSession(false);
+        }, 1000);
+      }
+
+      function setCurrentFromQueue() {
+        currentSentence = sentenceQueue[0] || pickSentence();
+        chars = currentSentence.split("").map((ch) => ({ char: ch, status: "default" }));
+        typedIndex = 0;
+        inputEl.value = "";
+        renderQueue();
+        updateProgress();
+      }
+
+      function initializeQueue() {
+        sentenceQueue = [];
+        for (let i = 0; i < 4; i++) {
+          sentenceQueue.push(pickSentence());
+        }
+        setCurrentFromQueue();
+      }
+
+      function advanceQueue() {
+        sentenceQueue.shift();
+        sentenceQueue.push(pickSentence());
+        setCurrentFromQueue();
+      }
+
+      function startSession() {
+        clearInterval(timerInterval);
+        sessionStarted = false;
+        sessionOver = false;
+        sessionCorrect = 0;
+        sessionErrors = 0;
+        streak = 0;
+        gameStartTime = null;
+
+        secondsLeft = getTimeLimit();
+        statTimer.textContent = secondsLeft;
+        statTimer.className = "typing-stat-value";
+        statWpm.textContent = "0";
+        statAccuracy.textContent = "–";
+        statStreak.textContent = "0";
+
+        resultPanel.classList.remove("visible");
+        hintEl.textContent = "Click the text area to start typing";
+        progressFill.style.width = "0%";
+
+        initializeQueue();
+      }
+
+      function endSession(completed) {
+        if (sessionOver) return;
+        sessionOver = true;
+        clearInterval(timerInterval);
+
+        const cur = currentLineEl.querySelector(".cursor");
+        if (cur) cur.classList.remove("cursor");
+
+        const elapsed = gameStartTime ? (Date.now() - gameStartTime) / 1000 / 60 : 0;
+        const wpm = elapsed > 0 ? Math.round(sessionCorrect / 5 / elapsed) : 0;
+        const allTyped = sessionCorrect + sessionErrors;
+        const accuracy = allTyped > 0 ? Math.round((sessionCorrect / allTyped) * 100) : 0;
+
+        resultHeading.textContent = completed ? "Sentence Complete!" : "Time's Up!";
+        resultWpm.textContent = wpm;
+        resultAccuracy.textContent = accuracy + "%";
+        resultCorrect.textContent = sessionCorrect;
+        resultErrors.textContent = sessionErrors;
+
+        resultPanel.classList.add("visible");
+        hintEl.textContent = "Press New Test to play again";
+        soundComplete();
+      }
+
+      function handleKey(e) {
+        if (sessionOver) return;
+
+        const key = e.key;
+        if (key.length > 1 && key !== "Backspace") return;
+
+        if (!sessionStarted && key !== "Backspace") {
+          sessionStarted = true;
+          startTimer();
+          hintEl.textContent = "Keep going!";
+        }
+
+        if (key === "Backspace") {
+          if (typedIndex === 0) return;
+          soundBackspace();
+
+          const prevIdx = typedIndex - 1;
+          if (chars[prevIdx].status === "incorrect") {
+            sessionErrors = Math.max(0, sessionErrors - 1);
+          } else if (chars[prevIdx].status === "correct") {
+            sessionCorrect = Math.max(0, sessionCorrect - 1);
+          }
+
+          chars[prevIdx].status = "default";
+          updateCharSpan(prevIdx);
+          moveCursor(typedIndex, prevIdx);
+          typedIndex = prevIdx;
+          streak = 0;
+          updateProgress();
+          updateLiveStats();
+          return;
+        }
+
+        if (key.length !== 1) return;
+        if (typedIndex >= currentSentence.length) return;
+
+        const expected = chars[typedIndex].char;
+        const oldIdx = typedIndex;
+
+        if (key === expected) {
+          chars[typedIndex].status = "correct";
+          sessionCorrect++;
+          streak++;
+          soundCorrect();
+        } else {
+          chars[typedIndex].status = "incorrect";
+          sessionErrors++;
+          streak = 0;
+          soundIncorrect();
+        }
+
+        updateCharSpan(oldIdx);
+        typedIndex++;
+        moveCursor(oldIdx, typedIndex);
+        updateProgress();
+        updateLiveStats();
+
+        if (typedIndex === currentSentence.length) {
+          const allCorrect = chars.every((c) => c.status === "correct");
+          if (allCorrect) {
+            soundComplete();
+            setTimeout(() => {
+              if (!sessionOver) advanceQueue();
+            }, 220);
+          }
+        }
+      }
+
+      function focusInput() {
+        inputEl.focus({ preventScroll: true });
+      }
+
+      displayEl.addEventListener("click", focusInput);
+      displayEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") focusInput();
+      });
+
+      inputEl.addEventListener("keydown", (e) => {
+        e.preventDefault();
+        handleKey(e);
+      });
+
+      inputEl.addEventListener("paste", (e) => e.preventDefault());
+
+      restartBtn.addEventListener("click", () => {
+        startSession();
+        focusInput();
+      });
+
+      skipBtn.addEventListener("click", () => {
+        if (sessionOver) return;
+        advanceQueue();
+        if (!sessionStarted) hintEl.textContent = "Click the text area to start typing";
+      });
+
+      diffSelect.addEventListener("change", () => {
+        if (!sessionStarted) initializeQueue();
+      });
+
+      timeSelect.addEventListener("change", () => {
+        if (!sessionStarted) {
+          secondsLeft = getTimeLimit();
+          statTimer.textContent = secondsLeft;
+        }
+      });
+
+      startSession();
+    })();
+    </script>
+  </body>
+</html>

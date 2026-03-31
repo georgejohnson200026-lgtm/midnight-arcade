@@ -49,6 +49,16 @@ const gameRoutes = [
     title: "Crazy Taxi",
     aliases: ["crazy taxi", "taxi", "driving game"],
   },
+  {
+    path: "typing-test.html",
+    title: "Typing Test",
+    aliases: ["typing test", "typing", "type fast", "wpm", "speed typing"],
+  },
+  {
+    path: "wizard101.html",
+    title: "Wizard101",
+    aliases: ["wizard101", "wizard 101", "wizard duel", "wizard", "spell game", "magic duel", "card wizard"],
+  },
 ];
 
 const favoriteGameCatalog = {
@@ -94,6 +104,18 @@ const favoriteGameCatalog = {
     tag: "Skilled",
     description: "Drive, dodge, and jump through traffic on the highway.",
   },
+  "typing-test.html": {
+    path: "typing-test.html",
+    title: "Typing Test",
+    tag: "Speed",
+    description: "Type fast, type clean. Real-time WPM and accuracy with colour-coded feedback.",
+  },
+  "wizard101.html": {
+    path: "wizard101.html",
+    title: "Wizard101",
+    tag: "Arcane",
+    description: "Build a small spell deck, stack blades and traps, and outplay rival wizards in the Spiral.",
+  },
 };
 
 function normalizeGameSearch(value) {
@@ -128,7 +150,7 @@ if (sidebarSearchInput) {
     const route = resolveGameRoute(sidebarSearchInput.value);
 
     if (!route) {
-      sidebarSearchInput.setCustomValidity("Game not found. Try Chess, Snake, Number Guess, Hangman, Crazy Taxi, Tic-Tac-Toe, or Rock Paper Scissors.");
+      sidebarSearchInput.setCustomValidity("Game not found. Try Wizard101, Chess, Snake, Number Guess, Hangman, Crazy Taxi, Tic-Tac-Toe, or Rock Paper Scissors.");
       sidebarSearchInput.reportValidity();
       return;
     }
@@ -2383,11 +2405,14 @@ if (taxiCanvas) {
   };
 
   const jumpSpeedThreshold = 70;
-  const stageDistanceMeters = 3000;
-  const runTimeSeconds = 63;
+  const baseStageDistanceMeters = 6000;
+  const runTimeSeconds = 60;
   const bonusTimeSeconds = 60;
   const policeChaseSeconds = 15;
   const finishLineRevealDistance = 800;
+  const jumpClearanceOffset = 110;
+  const collisionDepthMin = 0.76;
+  const collisionDepthMax = 0.97;
   const horizonY = 126;
   const roadTopWidth = 110;
   const roadBottomWidth = 760;
@@ -2411,7 +2436,7 @@ if (taxiCanvas) {
     spawnTimer: 0,
     dashOffset: 0,
     startLineOffset: 0,
-    distanceMeters: stageDistanceMeters,
+    distanceMeters: baseStageDistanceMeters,
     timeLeft: runTimeSeconds,
     level: 1,
     score: 0,
@@ -2454,6 +2479,10 @@ if (taxiCanvas) {
 
   function isPoliceChaseActive() {
     return taxiState.policeChaseTimer > 0;
+  }
+
+  function stageDistanceForLevel(level) {
+    return baseStageDistanceMeters + Math.max(0, level - 1) * 1000;
   }
 
   function modeLabel(mode) {
@@ -2523,7 +2552,7 @@ if (taxiCanvas) {
 
   function trafficSpawnInterval() {
     if (isPoliceChaseActive()) {
-      return randomBetween(2.1, 2.8);
+      return isCrazyMode() ? randomBetween(1.05, 1.4) : randomBetween(2.1, 2.8);
     }
     return taxiState.level === 1 ? randomBetween(1.2, 1.8) : randomBetween(0.8, 1.15);
   }
@@ -2569,7 +2598,7 @@ if (taxiCanvas) {
     taxiState.traffic.push({
       lane,
       depth,
-      speed: randomBetween(8, 14),
+      speed: isCrazyMode() ? randomBetween(10, 16) : randomBetween(8, 14),
       color: "#1f3b86",
       number: 0,
       roofSign: false,
@@ -2597,7 +2626,7 @@ if (taxiCanvas) {
 
   function beginNextTaxiLevel() {
     taxiState.level += 1;
-    taxiState.distanceMeters = stageDistanceMeters;
+    taxiState.distanceMeters = stageDistanceForLevel(taxiState.level);
     taxiState.timeLeft += bonusTimeSeconds;
     taxiState.startLineOffset = taxiCanvas.height + 120;
     taxiState.score += 1000 * taxiState.level;
@@ -2664,7 +2693,7 @@ if (taxiCanvas) {
       taxiState.traffic.push({
         lane,
         depth,
-        speed: randomBetween(18, 42),
+        speed: Math.random() > 0.5 ? 20 : 10,
         color: taxiPalette[Math.floor(Math.random() * taxiPalette.length)],
         number: Math.floor(randomBetween(10, 99)),
         roofSign: Math.random() > 0.72,
@@ -2707,7 +2736,7 @@ if (taxiCanvas) {
     taxiState.spawnTimer = trafficSpawnInterval();
     taxiState.dashOffset = 0;
     taxiState.startLineOffset = 0;
-    taxiState.distanceMeters = stageDistanceMeters;
+    taxiState.distanceMeters = stageDistanceForLevel(1);
     taxiState.timeLeft = runTimeSeconds;
     taxiState.level = 1;
     taxiState.score = 0;
@@ -2730,7 +2759,7 @@ if (taxiCanvas) {
 
     setTaxiMessage("Press the arrow keys to drive. Space jumps once you have enough speed.");
     taxiSpeed.textContent = "0";
-    taxiDistance.textContent = (stageDistanceMeters / 1609).toFixed(1);
+    taxiDistance.textContent = (stageDistanceForLevel(1) / 1609).toFixed(1);
     updateWantedIndicator();
   }
 
@@ -2926,12 +2955,28 @@ if (taxiCanvas) {
       });
 
       for (const car of taxiState.traffic) {
-        if (car.lane === player.lane && car.depth > 0.78 && car.depth < 0.95 && player.jumpOffset < 95 && player.crashTimer === 0) {
+        if (
+          car.lane === player.lane &&
+          car.depth > collisionDepthMin &&
+          car.depth < collisionDepthMax &&
+          player.jumpOffset < jumpClearanceOffset &&
+          player.crashTimer === 0
+        ) {
           player.crashTimer = 0.9;
-          player.speed = Math.max(18, player.speed * 0.45);
-          player.knockback = 38;
+          if (isCrazyMode()) {
+            player.speed = 0;
+            player.knockback = 56;
+          } else {
+            player.speed = Math.max(18, player.speed * 0.45);
+            player.knockback = 38;
+          }
           car.depth = 1.08;
-          setTaxiMessage("Crash. You got knocked back and lost speed. Floor it to recover.", 1.4);
+          setTaxiMessage(
+            isCrazyMode()
+              ? "Crash. In Crazy mode, a collision drops you to 0 mph and throws you backward."
+              : "Crash. You got knocked back and lost speed. Floor it to recover.",
+            1.4
+          );
           break;
         }
       }
