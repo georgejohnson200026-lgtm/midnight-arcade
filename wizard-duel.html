@@ -78,6 +78,133 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #070b12; c
   background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
   padding: 6px 10px;
 }
+
+#friends-btn {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 24;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.24);
+  background: rgba(8, 14, 28, 0.84);
+  color: #dbe8ff;
+  cursor: pointer;
+  font-size: 1.55rem;
+}
+
+#friends-panel {
+  position: fixed;
+  top: 72px;
+  right: 12px;
+  z-index: 24;
+  width: min(360px, 92vw);
+  max-height: 74vh;
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 194, 255, 0.35);
+  background: rgba(8, 12, 24, 0.95);
+  padding: 12px;
+  display: none;
+}
+
+#friends-panel.open {
+  display: block;
+}
+
+.friends-title {
+  color: #f7cb5b;
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+#friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.friend-item {
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+  background: rgba(20, 24, 44, 0.78);
+  color: #dbe8ff;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.friend-item.active {
+  border-color: #84b6ff;
+  box-shadow: 0 0 10px rgba(90, 138, 255, 0.32);
+}
+
+.friend-sub {
+  font-size: 0.72rem;
+  color: #9eb4d8;
+}
+
+#friend-preview {
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(16, 20, 36, 0.85);
+  min-height: 180px;
+}
+
+#friend-idle-emoji {
+  font-size: 3rem;
+  text-align: center;
+  margin: 8px 0;
+  animation: friendIdle 1.8s ease-in-out infinite;
+}
+
+@keyframes friendIdle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+#friend-name {
+  text-align: center;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+#friend-meta {
+  text-align: center;
+  color: #a9bfdf;
+  font-size: 0.76rem;
+  margin-bottom: 10px;
+}
+
+#friend-stats {
+  display: none;
+  font-size: 0.78rem;
+  color: #d2e2ff;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+#friend-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#friend-actions button {
+  flex: 1;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.22);
+  padding: 8px 10px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #e7f0ff;
+}
+
+#friend-see-stats-btn { background: #2a3568; }
+#friend-teleport-btn { background: #28503c; }
 #hud {
   position: fixed; left: 16px; bottom: 16px; z-index: 20; display: flex; gap: 10px;
 }
@@ -316,6 +443,21 @@ body.wand-cursor, body.wand-cursor * {
   <div id="world3d"></div>
   <div id="zone-title">The Commons</div>
   <a id="back-btn" href="index.html">Back</a>
+  <button id="friends-btn" type="button" title="Friends" aria-label="Friends">🤝</button>
+  <div id="friends-panel" aria-label="Online friends panel">
+    <div class="friends-title">Online Friends</div>
+    <div id="friends-list"></div>
+    <div id="friend-preview">
+      <div id="friend-name">No friend selected</div>
+      <div id="friend-meta">Select a friend to preview.</div>
+      <div id="friend-idle-emoji">✨</div>
+      <div id="friend-stats"></div>
+      <div id="friend-actions">
+        <button id="friend-see-stats-btn" type="button">See Stats</button>
+        <button id="friend-teleport-btn" type="button">Teleport To</button>
+      </div>
+    </div>
+  </div>
   <div id="hud">
     <div id="hud-hp" class="hud-circle"><span class="hud-val" id="hud-hp-val">400</span><span class="hud-lab">HP</span></div>
     <div id="hud-mp" class="hud-circle"><span class="hud-val" id="hud-mp-val">14</span><span class="hud-lab">Mana</span></div>
@@ -665,6 +807,15 @@ import * as THREE from './vendor/three.module.js';
 
   const coopStatusEl = document.getElementById('coop-status');
   const GLOBAL_LOBBY_ID = 'wizard-duel-global-lobby-v1';
+  const friendsBtn = document.getElementById('friends-btn');
+  const friendsPanel = document.getElementById('friends-panel');
+  const friendsListEl = document.getElementById('friends-list');
+  const friendNameEl = document.getElementById('friend-name');
+  const friendMetaEl = document.getElementById('friend-meta');
+  const friendIdleEmojiEl = document.getElementById('friend-idle-emoji');
+  const friendStatsEl = document.getElementById('friend-stats');
+  const friendSeeStatsBtn = document.getElementById('friend-see-stats-btn');
+  const friendTeleportBtn = document.getElementById('friend-teleport-btn');
 
   const COOP_ID_KEY = 'wizardDuelClientId';
   const fallbackClientId = localStorage.getItem(COOP_ID_KEY) || ('wiz-' + Math.random().toString(36).slice(2, 10));
@@ -683,7 +834,13 @@ import * as THREE from './vendor/three.module.js';
     reconnectHandle: null
   };
 
+  const friendsUi = {
+    selectedId: null,
+    showStats: false
+  };
+
   window.WIZARD_COOP_PLAYERS = [];
+  window.WIZARD_COOP_ONLINE = [];
 
   function setCoopStatus(msg, isError) {
     if (!coopStatusEl) return;
@@ -702,13 +859,22 @@ import * as THREE from './vendor/three.module.js';
       yaw: state.player.yaw,
       hp: state.player.hp,
       maxHp: state.player.maxHp,
+      mana: state.player.mana,
+      maxMana: state.player.maxMana,
+      level: state.player.level,
+      xp: state.player.xp,
+      gold: state.player.gold,
+      dmgBonus: state.player.dmgBonus,
+      resistance: state.player.resistance,
       t: Date.now()
     };
   }
 
   function publishExternalPlayers(list) {
     const me = coop.localPeerId || fallbackClientId;
-    window.WIZARD_COOP_PLAYERS = (list || []).filter(p => p && p.id && p.id !== me && p.zone === state.zone);
+    const online = (list || []).filter(p => p && p.id && p.id !== me);
+    window.WIZARD_COOP_ONLINE = online;
+    window.WIZARD_COOP_PLAYERS = online.filter(p => p.zone === state.zone);
   }
 
   function sanitizeRemoteState(raw) {
@@ -725,8 +891,173 @@ import * as THREE from './vendor/three.module.js';
       yaw: raw.yaw,
       hp: typeof raw.hp === 'number' ? raw.hp : 1,
       maxHp: typeof raw.maxHp === 'number' ? raw.maxHp : 1,
+      mana: typeof raw.mana === 'number' ? raw.mana : 0,
+      maxMana: typeof raw.maxMana === 'number' ? raw.maxMana : 0,
+      level: typeof raw.level === 'number' ? raw.level : 1,
+      xp: typeof raw.xp === 'number' ? raw.xp : 0,
+      gold: typeof raw.gold === 'number' ? raw.gold : 0,
+      dmgBonus: typeof raw.dmgBonus === 'number' ? raw.dmgBonus : 0,
+      resistance: typeof raw.resistance === 'number' ? raw.resistance : 0,
       t: typeof raw.t === 'number' ? raw.t : Date.now()
     };
+  }
+
+  function schoolEmojiFor(remote) {
+    return (remote && remote.school && SCHOOLS[remote.school] && SCHOOLS[remote.school].emoji) ? SCHOOLS[remote.school].emoji : '🧙';
+  }
+
+  function findOnlineFriendById(id) {
+    const list = Array.isArray(window.WIZARD_COOP_ONLINE) ? window.WIZARD_COOP_ONLINE : [];
+    return list.find(p => p.id === id) || null;
+  }
+
+  function renderFriendDetails(remote) {
+    if (!remote) {
+      friendNameEl.textContent = 'No friend selected';
+      friendMetaEl.textContent = 'Select a friend to preview.';
+      friendIdleEmojiEl.textContent = '✨';
+      friendStatsEl.style.display = 'none';
+      friendStatsEl.innerHTML = '';
+      return;
+    }
+    friendNameEl.textContent = remote.name || 'Wizard';
+    friendMetaEl.textContent = (remote.school || 'Balance') + ' • ' + zoneName(remote.zone || 'commons');
+    friendIdleEmojiEl.textContent = schoolEmojiFor(remote);
+    const hpNow = Math.max(0, Math.round(remote.hp || 0));
+    const hpMax = Math.max(1, Math.round(remote.maxHp || 1));
+    const mpNow = Math.max(0, Math.round(remote.mana || 0));
+    const mpMax = Math.max(1, Math.round(remote.maxMana || 1));
+    friendStatsEl.innerHTML =
+      'Level: ' + (remote.level || 1) + '<br>' +
+      'HP: ' + hpNow + ' / ' + hpMax + '<br>' +
+      'Mana: ' + mpNow + ' / ' + mpMax + '<br>' +
+      'XP: ' + Math.max(0, Math.round(remote.xp || 0)) + '<br>' +
+      'Gold: ' + Math.max(0, Math.round(remote.gold || 0)) + '<br>' +
+      'Damage Bonus: ' + Math.max(0, Math.round(remote.dmgBonus || 0)) + '%<br>' +
+      'Resistance: ' + Math.max(0, Math.round(remote.resistance || 0)) + '%';
+    friendStatsEl.style.display = friendsUi.showStats ? 'block' : 'none';
+  }
+
+  function renderFriendsPanel() {
+    if (!friendsListEl) return;
+    const online = Array.isArray(window.WIZARD_COOP_ONLINE) ? window.WIZARD_COOP_ONLINE : [];
+    friendsListEl.innerHTML = '';
+    if (!online.length) {
+      const empty = document.createElement('div');
+      empty.className = 'friend-sub';
+      empty.textContent = 'No online friends right now.';
+      friendsListEl.appendChild(empty);
+      renderFriendDetails(null);
+      friendsUi.selectedId = null;
+      return;
+    }
+
+    if (!friendsUi.selectedId || !findOnlineFriendById(friendsUi.selectedId)) {
+      friendsUi.selectedId = online[0].id;
+      friendsUi.showStats = false;
+    }
+
+    online.forEach(remote => {
+      const btn = document.createElement('button');
+      const active = remote.id === friendsUi.selectedId;
+      btn.type = 'button';
+      btn.className = 'friend-item' + (active ? ' active' : '');
+      btn.innerHTML =
+        '<div>' + schoolEmojiFor(remote) + ' ' + (remote.name || 'Wizard') + '</div>' +
+        '<div class="friend-sub">' + (remote.school || 'Balance') + ' • ' + zoneName(remote.zone || 'commons') + '</div>';
+      btn.addEventListener('click', () => {
+        friendsUi.selectedId = remote.id;
+        friendsUi.showStats = false;
+        renderFriendsPanel();
+      });
+      friendsListEl.appendChild(btn);
+    });
+
+    renderFriendDetails(findOnlineFriendById(friendsUi.selectedId));
+  }
+
+  function sendCoopMessage(msg) {
+    if (!msg || !coop.started) return;
+    if (coop.mode === 'host') {
+      coop.guestConns = coop.guestConns.filter(c => c && c.open);
+      coop.guestConns.forEach(conn => {
+        try { conn.send(msg); } catch (_e) { }
+      });
+      return;
+    }
+    if (coop.mode === 'guest' && coop.hostConn && coop.hostConn.open) {
+      try { coop.hostConn.send(msg); } catch (_e) { }
+    }
+  }
+
+  function sendBattleAction(action) {
+    if (!action || !coop.started) return;
+    sendCoopMessage({ type: 'battle-action', action: action });
+  }
+
+  function snapshotBattleHp(b) {
+    if (!b) return { enemy: [], ally: [] };
+    return {
+      enemy: b.enemies.map(u => Math.round(u.currentHp || 0)),
+      ally: b.allies.map(u => Math.round(u.currentHp || 0))
+    };
+  }
+
+  function diffBattleHp(beforeHp, afterHp) {
+    const maxEnemy = Math.max(beforeHp.enemy.length, afterHp.enemy.length);
+    const maxAlly = Math.max(beforeHp.ally.length, afterHp.ally.length);
+    const enemy = [];
+    const ally = [];
+    for (let i = 0; i < maxEnemy; i++) {
+      enemy.push((afterHp.enemy[i] || 0) - (beforeHp.enemy[i] || 0));
+    }
+    for (let i = 0; i < maxAlly; i++) {
+      ally.push((afterHp.ally[i] || 0) - (beforeHp.ally[i] || 0));
+    }
+    return { enemy: enemy, ally: ally };
+  }
+
+  function applyBattleHpDelta(delta) {
+    if (!state.battle || !delta) return;
+    const b = state.battle;
+    if (Array.isArray(delta.enemy)) {
+      delta.enemy.forEach((d, idx) => {
+        const unit = b.enemies[idx];
+        if (!unit || typeof d !== 'number') return;
+        unit.currentHp = Math.max(0, Math.min(unit.hp, unit.currentHp + d));
+      });
+    }
+    if (Array.isArray(delta.ally)) {
+      delta.ally.forEach((d, idx) => {
+        const unit = b.allies[idx];
+        if (!unit || typeof d !== 'number') return;
+        unit.currentHp = Math.max(0, Math.min(unit.hp, unit.currentHp + d));
+        if (unit.isPlayer) state.player.hp = unit.currentHp;
+      });
+    }
+  }
+
+  function applyIncomingBattleAction(action) {
+    if (!action || !state.battle) return;
+    const b = state.battle;
+    if (action.kind === 'cast') {
+      applyBattleHpDelta(action.delta);
+      if (typeof action.log === 'string' && action.log) {
+        b.log = action.log;
+      } else {
+        b.log = (action.sourceName || 'Ally') + ' cast a spell.';
+      }
+      if (!livingTeam(b.enemies).length) {
+        endBattle(true);
+        return;
+      }
+      renderBattle();
+      return;
+    }
+    if (action.kind === 'pass') {
+      b.log = (action.sourceName || 'Ally') + ' passed their turn.';
+      renderBattle();
+    }
   }
 
   function clearCoopRemotes() {
@@ -751,6 +1082,10 @@ import * as THREE from './vendor/three.module.js';
         if (!parsed) return;
         parsed.connPeer = conn.peer;
         coop.remoteById.set(parsed.id, parsed);
+        return;
+      }
+      if (msg.type === 'battle-action') {
+        applyIncomingBattleAction(msg.action);
       }
     });
     conn.on('close', () => {
@@ -799,14 +1134,19 @@ import * as THREE from './vendor/three.module.js';
     });
     conn.on('data', (msg) => {
       if (!msg || typeof msg !== 'object') return;
-      if (msg.type !== 'snapshot' || !Array.isArray(msg.players)) return;
-      const remotes = [];
-      msg.players.forEach(p => {
-        const parsed = sanitizeRemoteState(p);
-        if (parsed && parsed.id !== coop.localPeerId) remotes.push(parsed);
-      });
-      clearCoopRemotes();
-      remotes.forEach(p => coop.remoteById.set(p.id, p));
+      if (msg.type === 'snapshot' && Array.isArray(msg.players)) {
+        const remotes = [];
+        msg.players.forEach(p => {
+          const parsed = sanitizeRemoteState(p);
+          if (parsed && parsed.id !== coop.localPeerId) remotes.push(parsed);
+        });
+        clearCoopRemotes();
+        remotes.forEach(p => coop.remoteById.set(p.id, p));
+        return;
+      }
+      if (msg.type === 'battle-action') {
+        applyIncomingBattleAction(msg.action);
+      }
     });
     conn.on('close', () => {
       setCoopStatus('Global server unavailable. Reconnecting...', true);
@@ -857,6 +1197,7 @@ import * as THREE from './vendor/three.module.js';
     if (now - coop.lastStateSentAt < 120) {
       if (coop.mode === 'host') {
         publishExternalPlayers(Array.from(coop.remoteById.values()));
+        if (friendsPanel && friendsPanel.classList.contains('open')) renderFriendsPanel();
       }
       return;
     }
@@ -870,6 +1211,7 @@ import * as THREE from './vendor/three.module.js';
       }
       const snapshot = [myState, ...Array.from(coop.remoteById.values())];
       publishExternalPlayers(snapshot);
+      if (friendsPanel && friendsPanel.classList.contains('open')) renderFriendsPanel();
 
       if (now - coop.lastSnapshotAt >= 120) {
         coop.lastSnapshotAt = now;
@@ -891,6 +1233,7 @@ import * as THREE from './vendor/three.module.js';
       scheduleReconnect();
     }
     publishExternalPlayers(Array.from(coop.remoteById.values()));
+    if (friendsPanel && friendsPanel.classList.contains('open')) renderFriendsPanel();
   }
 
   window.addEventListener('beforeunload', () => {
@@ -5029,6 +5372,11 @@ import * as THREE from './vendor/three.module.js';
     b.locked = true;
     b.turn = 'enemy';
     b.log = fromTimer ? 'Timer expired. You passed your turn.' : 'You passed your turn.';
+    sendBattleAction({
+      kind: 'pass',
+      sourceId: coop.localPeerId || fallbackClientId,
+      sourceName: state.player.name || 'Wizard'
+    });
     grantBattlePip(b);
     clearBattleTimer();
     renderBattle();
@@ -5040,6 +5388,7 @@ import * as THREE from './vendor/three.module.js';
     const b = state.battle;
     if (b.turn !== 'player' || b.locked || !spellAffordable(sp, b)) return;
     const p = state.player;
+    const hpBefore = snapshotBattleHp(b);
     const playerUnit = battlePlayerUnit();
     if (!playerUnit || !isAlive(playerUnit)) return;
     const alliedTarget = explicitTargetId ? findUnit(b.allies, explicitTargetId) : null;
@@ -5219,6 +5568,15 @@ import * as THREE from './vendor/three.module.js';
     }
 
     animateBattleSpell(sp, playerUnit.id, animationTargetIds, () => {
+      const hpAfter = snapshotBattleHp(b);
+      sendBattleAction({
+        kind: 'cast',
+        sourceId: coop.localPeerId || fallbackClientId,
+        sourceName: state.player.name || 'Wizard',
+        spellId: sp.id,
+        delta: diffBattleHp(hpBefore, hpAfter),
+        log: msg
+      });
       b.log = msg;
       if (!livingTeam(b.enemies).length) return endBattle(true);
       b.turn = 'enemy';
@@ -5644,6 +6002,44 @@ import * as THREE from './vendor/three.module.js';
     if (state.battle || interiorActive) return;
     teleportToMarker();
   });
+
+  if (friendsBtn && friendsPanel) {
+    friendsBtn.addEventListener('click', () => {
+      friendsPanel.classList.toggle('open');
+      if (friendsPanel.classList.contains('open')) renderFriendsPanel();
+    });
+  }
+
+  if (friendSeeStatsBtn) {
+    friendSeeStatsBtn.addEventListener('click', () => {
+      if (!friendsUi.selectedId) return;
+      friendsUi.showStats = !friendsUi.showStats;
+      friendSeeStatsBtn.textContent = friendsUi.showStats ? 'Hide Stats' : 'See Stats';
+      renderFriendDetails(findOnlineFriendById(friendsUi.selectedId));
+    });
+  }
+
+  if (friendTeleportBtn) {
+    friendTeleportBtn.addEventListener('click', () => {
+      const remote = findOnlineFriendById(friendsUi.selectedId);
+      if (!remote) {
+        setCoopStatus('That friend is no longer online.', true);
+        renderFriendsPanel();
+        return;
+      }
+      const targetZone = (remote.zone && ZONES[remote.zone]) ? remote.zone : 'commons';
+      state.zone = targetZone;
+      state.player.x = remote.x + 1.2;
+      state.player.z = remote.z + 1.2;
+      state.player.yaw = typeof remote.yaw === 'number' ? remote.yaw : 0;
+      interiorActive = null;
+      buildWorld();
+      saveState();
+      document.getElementById('zone-title').textContent = ZONES[targetZone].name;
+      document.getElementById('si-zone').textContent = ZONES[targetZone].name;
+      setCoopStatus('Teleported to ' + (remote.name || 'friend') + '.', false);
+    });
+  }
 
   document.getElementById('skip-turn-btn').addEventListener('click', () => {
     passPlayerTurn(false);
