@@ -41,6 +41,63 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #070b12; c
 }
 #begin-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+#coop-panel {
+  width: min(680px, 92vw);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(10, 14, 28, 0.76);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#coop-panel h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #f3d98a;
+}
+
+.coop-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#coop-room-input {
+  flex: 1 1 240px;
+  min-width: 180px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: #101830;
+  color: #e8eeff;
+}
+
+.coop-btn {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  background: #1d2851;
+  color: #dfe8ff;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.coop-btn:hover {
+  border-color: #7fa2ff;
+}
+
+#coop-copy-link-btn {
+  background: #224b2d;
+}
+
+#coop-status {
+  font-size: 0.82rem;
+  color: #bfcde8;
+  min-height: 1.1rem;
+}
+
 #game-wrap { display: none; width: 100%; height: 100%; position: relative; }
 #world3d { position: absolute; inset: 0; }
 #world3d canvas { display: block; width: 100%; height: 100%; }
@@ -282,6 +339,16 @@ body.wand-cursor, body.wand-cursor * {
     <button class="school-btn" data-school="Myth">Myth</button>
     <button class="school-btn" data-school="Balance">Balance</button>
   </div>
+  <div id="coop-panel" aria-label="Multiplayer room controls">
+    <h3>Two-Player Crossplay</h3>
+    <div class="coop-row">
+      <input id="coop-room-input" type="text" placeholder="Room ID (leave empty and host to create one)">
+      <button id="coop-host-btn" class="coop-btn" type="button">Host Room</button>
+      <button id="coop-join-btn" class="coop-btn" type="button">Join Room</button>
+      <button id="coop-copy-link-btn" class="coop-btn" type="button">Copy Invite Link</button>
+    </div>
+    <p id="coop-status">Multiplayer is optional. Host to create a room, or paste a room ID and join.</p>
+  </div>
   <button id="begin-btn" disabled>Begin Adventure</button>
 </div>
 
@@ -410,6 +477,7 @@ body.wand-cursor, body.wand-cursor * {
 </div>
 <div id="spell-animation-layer"></div>
 
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module">
 import * as THREE from './vendor/three.module.js';
 
@@ -635,6 +703,239 @@ import * as THREE from './vendor/three.module.js';
     ui: { wandCursor: false }
   };
 
+  const coopRoomInput = document.getElementById('coop-room-input');
+  const coopHostBtn = document.getElementById('coop-host-btn');
+  const coopJoinBtn = document.getElementById('coop-join-btn');
+  const coopCopyLinkBtn = document.getElementById('coop-copy-link-btn');
+  const coopStatusEl = document.getElementById('coop-status');
+
+  const COOP_ID_KEY = 'wizardDuelClientId';
+  const fallbackClientId = localStorage.getItem(COOP_ID_KEY) || ('wiz-' + Math.random().toString(36).slice(2, 10));
+  localStorage.setItem(COOP_ID_KEY, fallbackClientId);
+
+  const coop = {
+    pendingMode: 'off',
+    pendingRoomId: '',
+    started: false,
+    mode: 'off',
+    peer: null,
+    hostConn: null,
+    guestConns: [],
+    remoteById: new Map(),
+    localPeerId: fallbackClientId,
+    roomId: '',
+    lastStateSentAt: 0,
+    lastSnapshotAt: 0
+  };
+
+  window.WIZARD_COOP_PLAYERS = [];
+
+  function setCoopStatus(msg, isError) {
+    if (!coopStatusEl) return;
+    coopStatusEl.textContent = msg;
+    coopStatusEl.style.color = isError ? '#ffb6b6' : '#bfcde8';
+  }
+
+  function getLocalCoopState() {
+    return {
+      id: coop.localPeerId || fallbackClientId,
+      name: state.player.name || 'Wizard',
+      school: state.player.school || 'Balance',
+      zone: state.zone,
+      x: state.player.x,
+      z: state.player.z,
+      yaw: state.player.yaw,
+      hp: state.player.hp,
+      maxHp: state.player.maxHp,
+      t: Date.now()
+    };
+  }
+
+  function publishExternalPlayers(list) {
+    const me = coop.localPeerId || fallbackClientId;
+    window.WIZARD_COOP_PLAYERS = (list || []).filter(p => p && p.id && p.id !== me && p.zone === state.zone);
+  }
+
+  function sanitizeRemoteState(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.id !== 'string') return null;
+    if (typeof raw.x !== 'number' || typeof raw.z !== 'number' || typeof raw.yaw !== 'number') return null;
+    return {
+      id: raw.id,
+      name: typeof raw.name === 'string' ? raw.name.slice(0, 24) : 'Wizard',
+      school: typeof raw.school === 'string' ? raw.school : 'Balance',
+      zone: typeof raw.zone === 'string' ? raw.zone : 'commons',
+      x: raw.x,
+      z: raw.z,
+      yaw: raw.yaw,
+      hp: typeof raw.hp === 'number' ? raw.hp : 1,
+      maxHp: typeof raw.maxHp === 'number' ? raw.maxHp : 1,
+      t: typeof raw.t === 'number' ? raw.t : Date.now()
+    };
+  }
+
+  function clearCoopRemotes() {
+    coop.remoteById.clear();
+    publishExternalPlayers([]);
+    for (const [id, entry] of remoteAvatarMeshes.entries()) {
+      disposeRemoteAvatar(entry);
+      remoteAvatarMeshes.delete(id);
+    }
+  }
+
+  function attachGuestConnection(conn) {
+    if (!conn) return;
+    coop.guestConns.push(conn);
+    conn.on('open', () => {
+      setCoopStatus('Guest connected. Room is live for crossplay.', false);
+    });
+    conn.on('data', (msg) => {
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type === 'state') {
+        const parsed = sanitizeRemoteState(msg.player);
+        if (!parsed) return;
+        parsed.connPeer = conn.peer;
+        coop.remoteById.set(parsed.id, parsed);
+      }
+    });
+    conn.on('close', () => {
+      coop.guestConns = coop.guestConns.filter(c => c !== conn);
+      for (const [id, remote] of coop.remoteById.entries()) {
+        if (remote && remote.connPeer === conn.peer) coop.remoteById.delete(id);
+      }
+    });
+  }
+
+  function startHostRoom() {
+    coop.mode = 'host';
+    coop.peer = new window.Peer();
+    coop.peer.on('open', (id) => {
+      coop.localPeerId = id;
+      coop.roomId = id;
+      coopRoomInput.value = id;
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', id);
+      history.replaceState({}, '', url.toString());
+      setCoopStatus('Hosting room ' + id + '. Share the invite link and have your friend press Join Room.', false);
+    });
+    coop.peer.on('connection', (conn) => {
+      attachGuestConnection(conn);
+    });
+    coop.peer.on('error', (err) => {
+      setCoopStatus('Host error: ' + (err && err.message ? err.message : 'PeerJS failed'), true);
+    });
+  }
+
+  function startJoinRoom(roomId) {
+    coop.mode = 'join';
+    coop.roomId = roomId;
+    coop.peer = new window.Peer();
+    coop.peer.on('open', (id) => {
+      coop.localPeerId = id;
+      const conn = coop.peer.connect(roomId, { reliable: true });
+      coop.hostConn = conn;
+      conn.on('open', () => {
+        setCoopStatus('Connected to room ' + roomId + '. You should now see each other in-game.', false);
+      });
+      conn.on('data', (msg) => {
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type !== 'snapshot' || !Array.isArray(msg.players)) return;
+        const remotes = [];
+        msg.players.forEach(p => {
+          const parsed = sanitizeRemoteState(p);
+          if (parsed && parsed.id !== coop.localPeerId) remotes.push(parsed);
+        });
+        clearCoopRemotes();
+        remotes.forEach(p => coop.remoteById.set(p.id, p));
+      });
+      conn.on('close', () => {
+        setCoopStatus('Disconnected from host room.', true);
+        clearCoopRemotes();
+      });
+      conn.on('error', (err) => {
+        setCoopStatus('Join connection error: ' + (err && err.message ? err.message : 'unknown error'), true);
+      });
+    });
+    coop.peer.on('error', (err) => {
+      setCoopStatus('Join setup error: ' + (err && err.message ? err.message : 'PeerJS failed'), true);
+    });
+  }
+
+  function beginCoopIfNeeded() {
+    if (coop.started) return;
+
+    const roomFromUrl = (new URL(window.location.href)).searchParams.get('room');
+    if (coop.pendingMode === 'join' && !coop.pendingRoomId) {
+      setCoopStatus('Paste a room ID before joining.', true);
+      return;
+    }
+
+    let mode = coop.pendingMode;
+    let roomId = coop.pendingRoomId;
+    if (mode === 'off' && roomFromUrl) {
+      mode = 'join';
+      roomId = roomFromUrl;
+      coopRoomInput.value = roomId;
+    }
+
+    if (mode === 'off') {
+      setCoopStatus('Single-player mode active. Use Host Room or Join Room for crossplay.', false);
+      return;
+    }
+
+    if (typeof window.Peer === 'undefined') {
+      setCoopStatus('PeerJS failed to load. Multiplayer is unavailable.', true);
+      return;
+    }
+
+    coop.started = true;
+    clearCoopRemotes();
+
+    if (mode === 'host') startHostRoom();
+    else startJoinRoom(roomId);
+  }
+
+  function tickCoopNetwork() {
+    if (!coop.started) return;
+
+    const now = performance.now();
+    if (now - coop.lastStateSentAt < 120) {
+      if (coop.mode === 'host') {
+        publishExternalPlayers(Array.from(coop.remoteById.values()));
+      }
+      return;
+    }
+    coop.lastStateSentAt = now;
+
+    const myState = getLocalCoopState();
+    if (coop.mode === 'host') {
+      const staleCutoff = Date.now() - 5000;
+      for (const [id, remote] of coop.remoteById.entries()) {
+        if (!remote || (remote.t || 0) < staleCutoff) coop.remoteById.delete(id);
+      }
+      const snapshot = [myState, ...Array.from(coop.remoteById.values())];
+      publishExternalPlayers(snapshot);
+
+      if (now - coop.lastSnapshotAt >= 120) {
+        coop.lastSnapshotAt = now;
+        coop.guestConns = coop.guestConns.filter(c => c && c.open);
+        coop.guestConns.forEach(conn => {
+          try {
+            conn.send({ type: 'snapshot', players: snapshot });
+          } catch (_e) { }
+        });
+      }
+      return;
+    }
+
+    if (coop.hostConn && coop.hostConn.open) {
+      try {
+        coop.hostConn.send({ type: 'state', player: myState });
+      } catch (_e) { }
+    }
+    publishExternalPlayers(Array.from(coop.remoteById.values()));
+  }
+
   function ensureUniversalPlayerState(p) {
     if (!p) return;
     if (!Array.isArray(p.spells)) p.spells = [];
@@ -784,6 +1085,8 @@ import * as THREE from './vendor/three.module.js';
 
   const world = new THREE.Group();
   scene.add(world);
+  const remoteAvatarRoot = new THREE.Group();
+  scene.add(remoteAvatarRoot);
 
   let playerMesh;
   let gateObjects = [];
@@ -811,6 +1114,7 @@ import * as THREE from './vendor/three.module.js';
   let teacherPromptEl = null;
   let teacherPanelEl = null;
   let xKeyWasDown = false;
+  const remoteAvatarMeshes = new Map();
 
   function spellStatLine(sp) {
     if (sp.type === 'damage' || sp.type === 'aoe' || sp.type === 'variableHit' || sp.type === 'variableAoe') {
@@ -925,6 +1229,106 @@ import * as THREE from './vendor/three.module.js';
     waterfallSheet = null;
     streamMeshes = [];
     pondRippleRings = [];
+  }
+
+  function makeNameSpriteTexture(text) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = 'rgba(8, 12, 24, 0.78)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(180, 210, 255, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+    ctx.fillStyle = '#eaf3ff';
+    ctx.font = '700 28px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((text || 'Wizard').slice(0, 18), canvas.width / 2, canvas.height / 2);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function createRemoteAvatar(remote) {
+    const schoolColor = (SCHOOLS[remote.school] && SCHOOLS[remote.school].color) || '#aac4ff';
+    const root = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.48, 1.1, 4, 8),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(schoolColor), roughness: 0.5, metalness: 0.05 })
+    );
+    body.position.y = 1.05;
+    root.add(body);
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xf1d0b2, roughness: 0.8 })
+    );
+    head.position.y = 2.0;
+    root.add(head);
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.6, 0.8, 18),
+      new THREE.MeshBasicMaterial({ color: 0x84b8ff, side: THREE.DoubleSide, transparent: true, opacity: 0.75 })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.03;
+    root.add(ring);
+
+    const labelTex = makeNameSpriteTexture(remote.name || 'Wizard');
+    const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false });
+    const label = new THREE.Sprite(labelMat);
+    label.scale.set(3.6, 0.9, 1);
+    label.position.set(0, 2.7, 0);
+    root.add(label);
+
+    root.position.set(remote.x, 0, remote.z);
+    root.rotation.y = remote.yaw;
+    remoteAvatarRoot.add(root);
+
+    return { root, label, labelTex };
+  }
+
+  function disposeRemoteAvatar(entry) {
+    if (!entry) return;
+    if (entry.root && entry.root.parent) entry.root.parent.remove(entry.root);
+    if (entry.labelTex && entry.labelTex.dispose) entry.labelTex.dispose();
+  }
+
+  function syncRemoteAvatars(dt) {
+    const visiblePlayers = Array.isArray(window.WIZARD_COOP_PLAYERS)
+      ? window.WIZARD_COOP_PLAYERS.filter(p => p && p.zone === state.zone)
+      : [];
+    const keep = new Set();
+
+    visiblePlayers.forEach(remote => {
+      keep.add(remote.id);
+      let entry = remoteAvatarMeshes.get(remote.id);
+      if (!entry) {
+        entry = createRemoteAvatar(remote);
+        remoteAvatarMeshes.set(remote.id, entry);
+      }
+      const lerpT = Math.min(1, dt * 10);
+      entry.root.position.x += (remote.x - entry.root.position.x) * lerpT;
+      entry.root.position.z += (remote.z - entry.root.position.z) * lerpT;
+      const angleDiff = Math.atan2(Math.sin(remote.yaw - entry.root.rotation.y), Math.cos(remote.yaw - entry.root.rotation.y));
+      entry.root.rotation.y += angleDiff * lerpT;
+      if (entry.labelTex && (entry._name !== remote.name)) {
+        if (entry.labelTex.dispose) entry.labelTex.dispose();
+        entry._name = remote.name;
+        entry.labelTex = makeNameSpriteTexture(remote.name || 'Wizard');
+        entry.label.material.map = entry.labelTex;
+        entry.label.material.needsUpdate = true;
+      }
+    });
+
+    for (const [id, entry] of remoteAvatarMeshes.entries()) {
+      if (keep.has(id)) continue;
+      disposeRemoteAvatar(entry);
+      remoteAvatarMeshes.delete(id);
+    }
   }
 
   function ensureTeacherUi() {
@@ -5301,6 +5705,59 @@ import * as THREE from './vendor/three.module.js';
     document.getElementById('begin-btn').disabled = !(hasName && hasSchool);
   }
 
+  if (coopHostBtn) {
+    coopHostBtn.addEventListener('click', () => {
+      coop.pendingMode = 'host';
+      coop.pendingRoomId = '';
+      const url = new URL(window.location.href);
+      url.searchParams.delete('room');
+      history.replaceState({}, '', url.toString());
+      setCoopStatus('Host selected. Press Begin Adventure, then share your room ID or invite link.', false);
+    });
+  }
+
+  if (coopJoinBtn) {
+    coopJoinBtn.addEventListener('click', () => {
+      const room = (coopRoomInput.value || '').trim();
+      if (!room) {
+        setCoopStatus('Paste a room ID to join.', true);
+        return;
+      }
+      coop.pendingMode = 'join';
+      coop.pendingRoomId = room;
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', room);
+      history.replaceState({}, '', url.toString());
+      setCoopStatus('Join selected for room ' + room + '. Press Begin Adventure to connect.', false);
+    });
+  }
+
+  if (coopCopyLinkBtn) {
+    coopCopyLinkBtn.addEventListener('click', async () => {
+      const room = (coop.roomId || coopRoomInput.value || '').trim();
+      if (!room) {
+        setCoopStatus('No room ID yet. Host a room first or paste one.', true);
+        return;
+      }
+      const invite = new URL(window.location.href);
+      invite.searchParams.set('room', room);
+      try {
+        await navigator.clipboard.writeText(invite.toString());
+        setCoopStatus('Invite link copied. Send it to your friend.', false);
+      } catch (_e) {
+        setCoopStatus('Could not copy automatically. Share this room ID: ' + room, true);
+      }
+    });
+  }
+
+  const initialRoom = (new URL(window.location.href)).searchParams.get('room');
+  if (initialRoom && coopRoomInput) {
+    coopRoomInput.value = initialRoom;
+    coop.pendingMode = 'join';
+    coop.pendingRoomId = initialRoom;
+    setCoopStatus('Invite link detected. Press Begin Adventure to join room ' + initialRoom + '.', false);
+  }
+
   document.getElementById('begin-btn').addEventListener('click', () => {
     const name = document.getElementById('name-input').value.trim();
     const school = document.querySelector('.school-btn.selected').dataset.school;
@@ -5336,6 +5793,7 @@ import * as THREE from './vendor/three.module.js';
 
   function launchGame() {
     ensureUniversalPlayerState(state.player);
+    beginCoopIfNeeded();
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('game-wrap').style.display = 'block';
     document.getElementById('zone-title').textContent = ZONES[state.zone].name;
@@ -5565,6 +6023,9 @@ import * as THREE from './vendor/three.module.js';
       const d = dist2(state.player.x, state.player.z, e.x, e.z);
       animateEnemyCharacter(e, dt, d);
     }
+
+    tickCoopNetwork();
+    syncRemoteAvatars(dt);
 
     if (state.battle) syncBattleJoiners(dt);
 
