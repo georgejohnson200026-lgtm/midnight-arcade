@@ -31,6 +31,26 @@
         flex: 1 1 140px;
       }
 
+      .typing-custom-time {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1 1 260px;
+      }
+
+      .typing-custom-time.hidden {
+        display: none;
+      }
+
+      .typing-custom-time input {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #0c1020;
+        color: var(--text);
+        padding: 0.55rem 0.7rem;
+      }
+
       /* Stats bar */
       .typing-stats {
         display: flex;
@@ -360,11 +380,16 @@
                 <span>Time Limit</span>
                 <select id="typing-time-limit">
                   <option value="30">30 seconds</option>
-                  <option value="60" selected>60 seconds</option>
-                  <option value="90">90 seconds</option>
+                  <option value="60" selected>1 minute</option>
                   <option value="120">2 minutes</option>
+                  <option value="other">Other</option>
                 </select>
               </label>
+              <div class="typing-custom-time hidden" id="typing-custom-time" aria-label="Custom time input">
+                <input id="typing-custom-minutes" type="number" min="0" max="59" value="1" placeholder="Minutes" />
+                <span class="meta-text">:</span>
+                <input id="typing-custom-seconds" type="number" min="0" max="59" value="0" placeholder="Seconds" />
+              </div>
             </div>
 
             <!-- Live stats -->
@@ -394,12 +419,7 @@
 
             <!-- Sentence display -->
             <div class="typing-display" id="typing-display" aria-label="Type the sentence shown here" tabindex="0">
-              <div class="typing-lines" id="typing-lines">
-                <div class="typing-line typing-line-active" id="typing-current-line"></div>
-                <div class="typing-line typing-line-preview" id="typing-next-line-1"></div>
-                <div class="typing-line typing-line-preview" id="typing-next-line-2"></div>
-                <div class="typing-line typing-line-preview" id="typing-next-line-3"></div>
-              </div>
+              <div class="typing-line typing-line-active" id="typing-current-line"></div>
             </div>
 
             <!-- Hidden real input that captures keystrokes -->
@@ -552,15 +572,15 @@
 
       const displayEl      = document.getElementById("typing-display");
       const currentLineEl  = document.getElementById("typing-current-line");
-      const nextLine1El    = document.getElementById("typing-next-line-1");
-      const nextLine2El    = document.getElementById("typing-next-line-2");
-      const nextLine3El    = document.getElementById("typing-next-line-3");
       const inputEl        = document.getElementById("typing-input");
       const restartBtn     = document.getElementById("typing-restart-btn");
       const skipBtn        = document.getElementById("typing-skip-btn");
       const hintEl         = document.getElementById("typing-hint");
       const diffSelect     = document.getElementById("typing-difficulty");
       const timeSelect     = document.getElementById("typing-time-limit");
+      const customTimeWrap = document.getElementById("typing-custom-time");
+      const customMinutes  = document.getElementById("typing-custom-minutes");
+      const customSeconds  = document.getElementById("typing-custom-seconds");
       const resultPanel    = document.getElementById("typing-result");
       const resultHeading  = document.getElementById("result-heading");
       const resultWpm      = document.getElementById("result-wpm");
@@ -574,10 +594,10 @@
       const progressFill   = document.getElementById("typing-progress-fill");
       const progressBar    = document.getElementById("typing-progress-bar");
 
-      let currentSentence  = "";
       let chars            = [];
       let typedIndex       = 0;
-      let sentenceQueue    = [];
+      let sentenceEnds     = [];
+      let sentenceIndex    = 0;
       let lastPicked       = "";
       let streak           = 0;
       let timerInterval    = null;
@@ -589,23 +609,42 @@
       let gameStartTime    = null;
 
       function getDifficulty() { return diffSelect.value; }
-      function getTimeLimit()  { return parseInt(timeSelect.value, 10); }
+      function getTimeLimit()  {
+        if (timeSelect.value !== "other") {
+          return parseInt(timeSelect.value, 10);
+        }
+        const mins = Math.max(0, parseInt(customMinutes.value || "0", 10) || 0);
+        const secs = Math.max(0, Math.min(59, parseInt(customSeconds.value || "0", 10) || 0));
+        return Math.max(5, mins * 60 + secs);
+      }
+
+      function syncCustomTimeVisibility() {
+        const showCustom = timeSelect.value === "other";
+        customTimeWrap.classList.toggle("hidden", !showCustom);
+      }
+
       function capitalizeStart(text) {
         if (!text) return text;
         return text.charAt(0).toUpperCase() + text.slice(1);
+      }
+
+      function withPeriod(text) {
+        const trimmed = String(text || "").trim();
+        if (!trimmed) return trimmed;
+        return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
       }
 
       function pickSentence() {
         const pool = SENTENCES[getDifficulty()];
         let selected;
         do {
-          selected = capitalizeStart(pool[Math.floor(Math.random() * pool.length)]);
+          selected = withPeriod(capitalizeStart(pool[Math.floor(Math.random() * pool.length)]));
         } while (selected === lastPicked && pool.length > 1);
         lastPicked = selected;
         return selected;
       }
 
-      function renderCurrentLine() {
+      function renderStream() {
         currentLineEl.innerHTML = "";
         chars.forEach((c, i) => {
           const span = document.createElement("span");
@@ -616,11 +655,14 @@
         });
       }
 
-      function renderQueue() {
-        renderCurrentLine();
-        nextLine1El.textContent = sentenceQueue[1] || "";
-        nextLine2El.textContent = sentenceQueue[2] || "";
-        nextLine3El.textContent = sentenceQueue[3] || "";
+      function appendSentenceChunk(sentence) {
+        if (chars.length > 0) {
+          chars.push({ char: " ", status: "default" });
+        }
+        sentence.split("").forEach((ch) => {
+          chars.push({ char: ch, status: "default" });
+        });
+        sentenceEnds.push(chars.length);
       }
 
       function updateCharSpan(index) {
@@ -636,11 +678,22 @@
         const old = currentLineEl.children[oldIdx];
         if (old) old.classList.remove("cursor");
         const nw = currentLineEl.children[newIdx];
-        if (nw && !sessionOver) nw.classList.add("cursor");
+        if (nw && !sessionOver) {
+          nw.classList.add("cursor");
+          nw.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      }
+
+      function currentSentenceRange() {
+        const start = sentenceIndex === 0 ? 0 : sentenceEnds[sentenceIndex - 1] + 1;
+        const end = sentenceEnds[sentenceIndex] || chars.length;
+        return { start, end };
       }
 
       function updateProgress() {
-        const pct = currentSentence.length ? (typedIndex / currentSentence.length) * 100 : 0;
+        const range = currentSentenceRange();
+        const span = Math.max(1, range.end - range.start);
+        const pct = Math.max(0, Math.min(100, ((typedIndex - range.start) / span) * 100));
         progressFill.style.width = pct + "%";
         progressBar.setAttribute("aria-valuenow", Math.round(pct));
       }
@@ -676,27 +729,34 @@
         }, 1000);
       }
 
-      function setCurrentFromQueue() {
-        currentSentence = sentenceQueue[0] || pickSentence();
-        chars = currentSentence.split("").map((ch) => ({ char: ch, status: "default" }));
+      function initializeStream() {
+        chars = [];
+        sentenceEnds = [];
+        sentenceIndex = 0;
         typedIndex = 0;
         inputEl.value = "";
-        renderQueue();
+
+        for (let i = 0; i < 8; i++) {
+          appendSentenceChunk(pickSentence());
+        }
+
+        renderStream();
         updateProgress();
       }
 
-      function initializeQueue() {
-        sentenceQueue = [];
-        for (let i = 0; i < 4; i++) {
-          sentenceQueue.push(pickSentence());
+      function ensureAheadBuffer() {
+        while (sentenceEnds.length - sentenceIndex < 6) {
+          appendSentenceChunk(pickSentence());
         }
-        setCurrentFromQueue();
       }
 
-      function advanceQueue() {
-        sentenceQueue.shift();
-        sentenceQueue.push(pickSentence());
-        setCurrentFromQueue();
+      function advanceSentenceIfNeeded() {
+        while (typedIndex >= (sentenceEnds[sentenceIndex] || Infinity)) {
+          sentenceIndex += 1;
+          ensureAheadBuffer();
+          soundComplete();
+        }
+        updateProgress();
       }
 
       function startSession() {
@@ -719,7 +779,7 @@
         hintEl.textContent = "Click the text area to start typing";
         progressFill.style.width = "0%";
 
-        initializeQueue();
+        initializeStream();
       }
 
       function endSession(completed) {
@@ -735,7 +795,7 @@
         const allTyped = sessionCorrect + sessionErrors;
         const accuracy = allTyped > 0 ? Math.round((sessionCorrect / allTyped) * 100) : 0;
 
-        resultHeading.textContent = completed ? "Sentence Complete!" : "Time's Up!";
+        resultHeading.textContent = completed ? "Great Run!" : "Time's Up!";
         resultWpm.textContent = wpm;
         resultAccuracy.textContent = accuracy + "%";
         resultCorrect.textContent = sessionCorrect;
@@ -800,18 +860,8 @@
         updateCharSpan(oldIdx);
         typedIndex++;
         moveCursor(oldIdx, typedIndex);
-        updateProgress();
+        advanceSentenceIfNeeded();
         updateLiveStats();
-
-        if (typedIndex === currentSentence.length) {
-          const allCorrect = chars.every((c) => c.status === "correct");
-          if (allCorrect) {
-            soundComplete();
-            setTimeout(() => {
-              if (!sessionOver) advanceQueue();
-            }, 220);
-          }
-        }
       }
 
       function focusInput() {
@@ -837,21 +887,42 @@
 
       skipBtn.addEventListener("click", () => {
         if (sessionOver) return;
-        advanceQueue();
+        const range = currentSentenceRange();
+        const oldIdx = typedIndex;
+        typedIndex = range.end;
+        moveCursor(oldIdx, typedIndex);
+        advanceSentenceIfNeeded();
+        updateLiveStats();
         if (!sessionStarted) hintEl.textContent = "Click the text area to start typing";
       });
 
       diffSelect.addEventListener("change", () => {
-        if (!sessionStarted) initializeQueue();
+        if (!sessionStarted) initializeStream();
       });
 
       timeSelect.addEventListener("change", () => {
+        syncCustomTimeVisibility();
         if (!sessionStarted) {
           secondsLeft = getTimeLimit();
           statTimer.textContent = secondsLeft;
         }
       });
 
+      customMinutes.addEventListener("input", () => {
+        if (!sessionStarted && timeSelect.value === "other") {
+          secondsLeft = getTimeLimit();
+          statTimer.textContent = secondsLeft;
+        }
+      });
+
+      customSeconds.addEventListener("input", () => {
+        if (!sessionStarted && timeSelect.value === "other") {
+          secondsLeft = getTimeLimit();
+          statTimer.textContent = secondsLeft;
+        }
+      });
+
+      syncCustomTimeVisibility();
       startSession();
     })();
     </script>
