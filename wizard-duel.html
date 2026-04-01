@@ -885,7 +885,8 @@ import * as THREE from './vendor/three.module.js';
     lastSelfHealAt: 0,
     snapshotWatchHandle: null,
     meshConns: new Map(),
-    retainedById: new Map()
+    retainedById: new Map(),
+    localSeq: 0
   };
 
   const friendsUi = {
@@ -920,9 +921,11 @@ import * as THREE from './vendor/three.module.js';
   }
 
   function getLocalCoopState() {
+    coop.localSeq += 1;
     return {
       id: coop.playerId,
       peerId: coop.localPeerId || '',
+      seq: coop.localSeq,
       name: state.player.name || 'Wizard',
       school: state.player.school || 'Balance',
       zone: normalizeZoneId(state.zone),
@@ -1101,6 +1104,7 @@ import * as THREE from './vendor/three.module.js';
     return {
       id: raw.id,
       peerId: typeof raw.peerId === 'string' ? raw.peerId : '',
+      seq: typeof raw.seq === 'number' ? raw.seq : 0,
       name: typeof raw.name === 'string' ? raw.name.slice(0, 24) : 'Wizard',
       school: typeof raw.school === 'string' ? raw.school : 'Balance',
       zone: normalizeZoneId(typeof raw.zone === 'string' ? raw.zone : 'commons'),
@@ -1118,6 +1122,34 @@ import * as THREE from './vendor/three.module.js';
       resistance: typeof raw.resistance === 'number' ? raw.resistance : 0,
       t: typeof raw.t === 'number' ? raw.t : Date.now()
     };
+  }
+
+  function shouldAcceptRemoteUpdate(existing, incoming) {
+    if (!incoming) return false;
+    if (!existing) return true;
+    const inSeq = typeof incoming.seq === 'number' ? incoming.seq : 0;
+    const exSeq = typeof existing.seq === 'number' ? existing.seq : 0;
+    if (inSeq > 0 && exSeq > 0) {
+      if (inSeq < exSeq) return false;
+      if (inSeq === exSeq) {
+        const inT = typeof incoming.t === 'number' ? incoming.t : 0;
+        const exT = typeof existing.t === 'number' ? existing.t : 0;
+        return inT >= exT;
+      }
+      return true;
+    }
+    const inT = typeof incoming.t === 'number' ? incoming.t : 0;
+    const exT = typeof existing.t === 'number' ? existing.t : 0;
+    return inT >= exT;
+  }
+
+  function upsertRemoteState(parsed, source) {
+    if (!parsed || parsed.id === coop.playerId) return false;
+    const existing = coop.remoteById.get(parsed.id);
+    if (!shouldAcceptRemoteUpdate(existing, parsed)) return false;
+    const merged = Object.assign({}, existing || {}, parsed, { connPeer: source || (existing && existing.connPeer) || 'unknown' });
+    coop.remoteById.set(parsed.id, merged);
+    return true;
   }
 
   function schoolEmojiFor(remote) {
@@ -1172,11 +1204,9 @@ import * as THREE from './vendor/three.module.js';
       if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'state') {
         const parsed = sanitizeRemoteState(msg.player);
-        if (!parsed || parsed.id === coop.playerId) return;
-        parsed.connPeer = conn.peer;
+        if (!parsed) return;
         parsed.t = Date.now();
-        const existing = coop.remoteById.get(parsed.id) || {};
-        coop.remoteById.set(parsed.id, Object.assign(existing, parsed));
+        upsertRemoteState(parsed, conn.peer);
         return;
       }
       if (msg.type === 'battle-action') {
@@ -1382,9 +1412,7 @@ import * as THREE from './vendor/three.module.js';
       if (msg.type === 'state') {
         const parsed = sanitizeRemoteState(msg.player);
         if (!parsed) return;
-        if (parsed.id === coop.playerId) return;
-        parsed.connPeer = conn.peer;
-        coop.remoteById.set(parsed.id, parsed);
+        upsertRemoteState(parsed, conn.peer);
         if (friendsPanel && friendsPanel.classList.contains('open')) renderFriendsPanel();
         return;
       }
@@ -1473,11 +1501,9 @@ import * as THREE from './vendor/three.module.js';
         armGuestSnapshotWatchdog();
         msg.players.forEach(p => {
           const parsed = sanitizeRemoteState(p);
-          if (!parsed || parsed.id === coop.playerId) return;
-          const existing = coop.remoteById.get(parsed.id) || {};
-          const merged = Object.assign(existing, parsed);
-          merged.connPeer = 'host-snapshot';
-          coop.remoteById.set(parsed.id, merged);
+          if (!parsed) return;
+          upsertRemoteState(parsed, 'host-snapshot');
+          const merged = coop.remoteById.get(parsed.id) || parsed;
           if (merged.peerId) ensureMeshConnectionTo(merged.peerId);
         });
         return;
@@ -2069,8 +2095,7 @@ import * as THREE from './vendor/three.module.js';
       entry.root.position.z += (remote.z - entry.root.position.z) * lerpT;
       entry.phase = (entry.phase || 0) + dt * 2.2;
       entry.root.position.y = Math.sin(entry.phase) * 0.015;
-      const angleDiff = Math.atan2(Math.sin(remote.yaw - entry.root.rotation.y), Math.cos(remote.yaw - entry.root.rotation.y));
-      entry.root.rotation.y += angleDiff * lerpT;
+      entry.root.rotation.y = remote.yaw;
       if (entry.labelTex && (entry._name !== remote.name)) {
         if (entry.labelTex.dispose) entry.labelTex.dispose();
         entry._name = remote.name;
