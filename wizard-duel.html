@@ -891,6 +891,20 @@ import * as THREE from './vendor/three.module.js';
 
   window.WIZARD_COOP_PLAYERS = [];
   window.WIZARD_COOP_ONLINE = [];
+  window.WIZARD_COOP_RENDER_PLAYERS = [];
+
+  function normalizeZoneId(zoneValue) {
+    const raw = String(zoneValue || '').trim().toLowerCase();
+    if (!raw) return 'commons';
+    if (raw === 'the commons' || raw === 'commons') return 'commons';
+    if (raw === 'ravenwood') return 'ravenwood';
+    if (raw === 'unicorn way' || raw === 'unicorn') return 'unicorn';
+    if (raw === 'triton avenue' || raw === 'triton') return 'triton';
+    if (raw === 'firecat alley' || raw === 'firecat') return 'firecat';
+    if (raw === 'cyclops lane' || raw === 'cyclops') return 'cyclops';
+    if (raw === 'haunted cave' || raw === 'haunted') return 'haunted';
+    return raw;
+  }
 
   function setCoopStatus(msg, isError) {
     if (!coopStatusEl) return;
@@ -904,7 +918,7 @@ import * as THREE from './vendor/three.module.js';
       peerId: coop.localPeerId || '',
       name: state.player.name || 'Wizard',
       school: state.player.school || 'Balance',
-      zone: state.zone,
+      zone: normalizeZoneId(state.zone),
       x: state.player.x,
       z: state.player.z,
       yaw: state.player.yaw,
@@ -923,9 +937,16 @@ import * as THREE from './vendor/three.module.js';
 
   function publishExternalPlayers(list) {
     const me = coop.playerId;
-    const online = (list || []).filter(p => p && p.id && p.id !== me);
+    const online = (list || []).filter(p => p && p.id && p.id !== me).map(p => {
+      const copy = Object.assign({}, p);
+      copy.zone = normalizeZoneId(copy.zone);
+      return copy;
+    });
+    const myZone = normalizeZoneId(state.zone);
+    const sameZone = online.filter(p => normalizeZoneId(p.zone) === myZone);
     window.WIZARD_COOP_ONLINE = online;
-    window.WIZARD_COOP_PLAYERS = online.filter(p => p.zone === state.zone);
+    window.WIZARD_COOP_PLAYERS = sameZone;
+    window.WIZARD_COOP_RENDER_PLAYERS = sameZone.length ? sameZone : online;
   }
 
   function loadFriendsStore() {
@@ -987,6 +1008,9 @@ import * as THREE from './vendor/three.module.js';
     const fallbackAge = coop.lastFallbackReceivedAt ? (now - coop.lastFallbackReceivedAt) : -1;
     const remoteCount = coop.remoteById.size;
     const visibleCount = Array.isArray(window.WIZARD_COOP_PLAYERS) ? window.WIZARD_COOP_PLAYERS.length : 0;
+    const renderCount = Array.isArray(window.WIZARD_COOP_RENDER_PLAYERS) ? window.WIZARD_COOP_RENDER_PLAYERS.length : 0;
+    const sample = Array.from(coop.remoteById.values())[0] || null;
+    const sampleZone = sample ? normalizeZoneId(sample.zone) : 'n/a';
     netDebugBodyEl.innerHTML =
       'mode: ' + coop.mode + '<br>' +
       'peer open: ' + (peerOpen ? 'yes' : 'no') + '<br>' +
@@ -995,8 +1019,11 @@ import * as THREE from './vendor/three.module.js';
       'mesh conns: ' + meshOpen + '<br>' +
       'snapshot age: ' + (snapshotAge < 0 ? 'n/a' : (Math.round(snapshotAge / 100) / 10 + 's')) + '<br>' +
       'fallback age: ' + (fallbackAge < 0 ? 'n/a' : (Math.round(fallbackAge / 100) / 10 + 's')) + '<br>' +
+      'my zone: ' + normalizeZoneId(state.zone) + '<br>' +
+      'sample zone: ' + sampleZone + '<br>' +
       'remotes known: ' + remoteCount + '<br>' +
-      'remotes visible: ' + visibleCount;
+      'remotes visible: ' + visibleCount + '<br>' +
+      'remotes render: ' + renderCount;
   }
 
   function initLocalFallbackChannel() {
@@ -1044,7 +1071,7 @@ import * as THREE from './vendor/three.module.js';
       peerId: typeof raw.peerId === 'string' ? raw.peerId : '',
       name: typeof raw.name === 'string' ? raw.name.slice(0, 24) : 'Wizard',
       school: typeof raw.school === 'string' ? raw.school : 'Balance',
-      zone: typeof raw.zone === 'string' ? raw.zone : 'commons',
+      zone: normalizeZoneId(typeof raw.zone === 'string' ? raw.zone : 'commons'),
       x: raw.x,
       z: raw.z,
       yaw: raw.yaw,
@@ -1676,7 +1703,14 @@ import * as THREE from './vendor/three.module.js';
     return { x: 0, z: 0, yaw: 0 };
   }
 
-  const SAVE_KEY = 'wizardDuel_v2';
+  const LEGACY_SAVE_KEY = 'wizardDuel_v2';
+  const SAVE_SLOT_KEY = 'wizardDuelSaveSlotId';
+  let saveSlotId = sessionStorage.getItem(SAVE_SLOT_KEY);
+  if (!saveSlotId) {
+    saveSlotId = 'slot-' + Math.random().toString(36).slice(2, 12);
+    sessionStorage.setItem(SAVE_SLOT_KEY, saveSlotId);
+  }
+  const SAVE_KEY = LEGACY_SAVE_KEY + '_' + saveSlotId;
   function saveState() {
     const markerSave = teleportMarker
       ? { zone: teleportMarker.zone, x: teleportMarker.x, z: teleportMarker.z }
@@ -1685,7 +1719,14 @@ import * as THREE from './vendor/three.module.js';
   }
   function loadSave() {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      let raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) {
+        const legacy = localStorage.getItem(LEGACY_SAVE_KEY);
+        if (legacy) {
+          raw = legacy;
+          localStorage.setItem(SAVE_KEY, legacy);
+        }
+      }
       if (!raw) return false;
       const d = JSON.parse(raw);
       Object.assign(state.player, d.player || {});
@@ -1981,8 +2022,8 @@ import * as THREE from './vendor/three.module.js';
   }
 
   function syncRemoteAvatars(dt) {
-    const visiblePlayers = Array.isArray(window.WIZARD_COOP_PLAYERS)
-      ? window.WIZARD_COOP_PLAYERS.filter(p => p && p.zone === state.zone)
+    const visiblePlayers = Array.isArray(window.WIZARD_COOP_RENDER_PLAYERS)
+      ? window.WIZARD_COOP_RENDER_PLAYERS.filter(p => p)
       : [];
     const keep = new Set();
 
