@@ -855,9 +855,14 @@ import * as THREE from './vendor/three.module.js';
   const GUEST_SNAPSHOT_TIMEOUT_MS = 2500;
 
   const COOP_ID_KEY = 'wizardDuelClientId';
+  const COOP_SESSION_ID_KEY = 'wizardDuelSessionPlayerId';
   const FRIENDS_KEY = 'wizardDuelFriends_v1';
-  const fallbackClientId = localStorage.getItem(COOP_ID_KEY) || ('wiz-' + Math.random().toString(36).slice(2, 10));
-  localStorage.setItem(COOP_ID_KEY, fallbackClientId);
+  let fallbackClientId = sessionStorage.getItem(COOP_SESSION_ID_KEY);
+  if (!fallbackClientId) {
+    fallbackClientId = 'wiz-' + Math.random().toString(36).slice(2, 10);
+    sessionStorage.setItem(COOP_SESSION_ID_KEY, fallbackClientId);
+    localStorage.setItem(COOP_ID_KEY, fallbackClientId);
+  }
 
   const coop = {
     started: false,
@@ -1013,6 +1018,7 @@ import * as THREE from './vendor/three.module.js';
     const sampleZone = sample ? normalizeZoneId(sample.zone) : 'n/a';
     netDebugBodyEl.innerHTML =
       'mode: ' + coop.mode + '<br>' +
+      'player id: ' + String(coop.playerId || '').slice(-4) + '<br>' +
       'peer open: ' + (peerOpen ? 'yes' : 'no') + '<br>' +
       'fallback: ' + (coop.channel ? 'on' : 'off') + '<br>' +
       'host conn: ' + (hostConnOpen ? 'open' : 'closed') + '<br>' +
@@ -1350,6 +1356,7 @@ import * as THREE from './vendor/three.module.js';
       if (msg.type === 'state') {
         const parsed = sanitizeRemoteState(msg.player);
         if (!parsed) return;
+        if (parsed.id === coop.playerId) return;
         parsed.connPeer = conn.peer;
         coop.remoteById.set(parsed.id, parsed);
         if (friendsPanel && friendsPanel.classList.contains('open')) renderFriendsPanel();
