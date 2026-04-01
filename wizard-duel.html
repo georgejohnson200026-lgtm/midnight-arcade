@@ -1044,6 +1044,8 @@ import * as THREE from './vendor/three.module.js';
     const heldCount = coop.retainedById ? coop.retainedById.size : 0;
     const sample = Array.from(coop.remoteById.values())[0] || null;
     const sampleZone = sample ? normalizeZoneId(sample.zone) : 'n/a';
+    const myYawDeg = Math.round((((state.player.yaw || 0) * 180 / Math.PI) % 360 + 360) % 360);
+    const sampleYawDeg = sample ? Math.round((((sample.yaw || 0) * 180 / Math.PI) % 360 + 360) % 360) : -1;
     netDebugBodyEl.innerHTML =
       'mode: ' + coop.mode + '<br>' +
       'player id: ' + String(coop.playerId || '').slice(-4) + '<br>' +
@@ -1055,6 +1057,8 @@ import * as THREE from './vendor/three.module.js';
       'fallback age: ' + (fallbackAge < 0 ? 'n/a' : (Math.round(fallbackAge / 100) / 10 + 's')) + '<br>' +
       'my zone: ' + normalizeZoneId(state.zone) + '<br>' +
       'sample zone: ' + sampleZone + '<br>' +
+        'my yaw: ' + myYawDeg + '°<br>' +
+        'sample yaw: ' + (sampleYawDeg < 0 ? 'n/a' : (sampleYawDeg + '°')) + '<br>' +
       'remotes known: ' + remoteCount + '<br>' +
       'remotes visible: ' + visibleCount + '<br>' +
         'remotes render: ' + renderCount + '<br>' +
@@ -2032,6 +2036,7 @@ import * as THREE from './vendor/three.module.js';
       deepCloneMeshMaterials(wizardClone);
       tintWizardClone(wizardClone, remote.school || 'Balance');
       wizardClone.position.set(0, 0, 0);
+      wizardClone.rotation.set(0, 0, 0);
       root.add(wizardClone);
     } else {
       const fallbackColor = (SCHOOLS[remote.school] && SCHOOLS[remote.school].color) || '#aac4ff';
@@ -2061,7 +2066,7 @@ import * as THREE from './vendor/three.module.js';
     const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false });
     const label = new THREE.Sprite(labelMat);
     label.scale.set(3.6, 0.9, 1);
-    label.position.set(0, 2.7, 0);
+    label.position.set(0, 3.35, 0);
     root.add(label);
 
     root.position.set(remote.x, 0, remote.z);
