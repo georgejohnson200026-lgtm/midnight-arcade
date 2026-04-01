@@ -852,6 +852,7 @@ import * as THREE from './vendor/three.module.js';
   const netDebugEl = document.getElementById('net-debug');
   const netDebugBodyEl = document.getElementById('net-debug-body');
   const REMOTE_STALE_MS = 25000;
+  const GUEST_SNAPSHOT_TIMEOUT_MS = 2500;
 
   const COOP_ID_KEY = 'wizardDuelClientId';
   const FRIENDS_KEY = 'wizardDuelFriends_v1';
@@ -875,7 +876,8 @@ import * as THREE from './vendor/three.module.js';
     channel: null,
     lastFallbackReceivedAt: 0,
     startedAt: 0,
-    lastSelfHealAt: 0
+    lastSelfHealAt: 0,
+    snapshotWatchHandle: null
   };
 
   const friendsUi = {
@@ -1098,6 +1100,25 @@ import * as THREE from './vendor/three.module.js';
     }
   }
 
+  function clearGuestSnapshotWatchdog() {
+    if (!coop.snapshotWatchHandle) return;
+    clearTimeout(coop.snapshotWatchHandle);
+    coop.snapshotWatchHandle = null;
+  }
+
+  function armGuestSnapshotWatchdog() {
+    clearGuestSnapshotWatchdog();
+    if (coop.mode !== 'guest') return;
+    coop.snapshotWatchHandle = setTimeout(() => {
+      coop.snapshotWatchHandle = null;
+      if (coop.mode !== 'guest') return;
+      const age = coop.lastSnapshotReceivedAt ? (Date.now() - coop.lastSnapshotReceivedAt) : Number.MAX_SAFE_INTEGER;
+      if (age > GUEST_SNAPSHOT_TIMEOUT_MS) {
+        attemptHostTakeover('snapshot timeout');
+      }
+    }, GUEST_SNAPSHOT_TIMEOUT_MS + 150);
+  }
+
   function renderFriendsPanel() {
     if (!friendsListEl) return;
     const online = Array.isArray(window.WIZARD_COOP_ONLINE) ? window.WIZARD_COOP_ONLINE : [];
@@ -1277,6 +1298,7 @@ import * as THREE from './vendor/three.module.js';
   }
 
   function startAsHost() {
+    clearGuestSnapshotWatchdog();
     if (coop.peer && coop.mode === 'guest') {
       try { coop.peer.destroy(); } catch (_e) { }
       coop.peer = null;
@@ -1331,11 +1353,16 @@ import * as THREE from './vendor/three.module.js';
     conn.on('open', () => {
       setCoopStatus('Connected to global multiplayer. You should see other players automatically.', false);
       coop.lastSnapshotReceivedAt = Date.now();
+      try {
+        conn.send({ type: 'state', player: getLocalCoopState() });
+      } catch (_e) { }
+      armGuestSnapshotWatchdog();
     });
     conn.on('data', (msg) => {
       if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'snapshot' && Array.isArray(msg.players)) {
         coop.lastSnapshotReceivedAt = Date.now();
+        armGuestSnapshotWatchdog();
         msg.players.forEach(p => {
           const parsed = sanitizeRemoteState(p);
           if (!parsed || parsed.id === coop.playerId) return;
@@ -1353,16 +1380,19 @@ import * as THREE from './vendor/three.module.js';
     conn.on('close', () => {
       setCoopStatus('Global server unavailable. Reconnecting...', true);
       coop.lastSnapshotReceivedAt = 0;
+      clearGuestSnapshotWatchdog();
       scheduleReconnect();
     });
     conn.on('error', () => {
       setCoopStatus('Global server unavailable. Reconnecting...', true);
       coop.lastSnapshotReceivedAt = 0;
+      clearGuestSnapshotWatchdog();
       scheduleReconnect();
     });
   }
 
   function startAsGuest() {
+    clearGuestSnapshotWatchdog();
     if (coop.peer) {
       try { coop.peer.destroy(); } catch (_e) { }
       coop.peer = null;
@@ -1404,7 +1434,7 @@ import * as THREE from './vendor/three.module.js';
       const nowMs = Date.now();
       if (!coop.hostConn || !coop.hostConn.open) {
         attemptHostTakeover('no host connection');
-      } else if (coop.lastSnapshotReceivedAt > 0 && nowMs - coop.lastSnapshotReceivedAt > 7000) {
+      } else if (coop.lastSnapshotReceivedAt > 0 && nowMs - coop.lastSnapshotReceivedAt > 2800) {
         attemptHostTakeover('stale host heartbeat');
       }
     }
@@ -1475,6 +1505,7 @@ import * as THREE from './vendor/three.module.js';
   }
 
   window.addEventListener('beforeunload', () => {
+    clearGuestSnapshotWatchdog();
     if (coop.reconnectHandle) {
       clearTimeout(coop.reconnectHandle);
       coop.reconnectHandle = null;
