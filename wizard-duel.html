@@ -206,6 +206,32 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #070b12; c
 #friend-see-stats-btn { background: #2a3568; }
 #friend-teleport-btn { background: #28503c; }
 #friend-toggle-btn { background: #5a3f1d; }
+
+#net-debug {
+  position: fixed;
+  top: 72px;
+  right: 386px;
+  z-index: 24;
+  min-width: 210px;
+  border-radius: 10px;
+  border: 1px solid rgba(150, 200, 255, 0.32);
+  background: rgba(9, 14, 28, 0.86);
+  color: #d3e6ff;
+  padding: 8px 10px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  display: none;
+}
+
+#net-debug.visible {
+  display: block;
+}
+
+#net-debug-title {
+  color: #ffd98a;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
 #hud {
   position: fixed; left: 16px; bottom: 16px; z-index: 20; display: flex; gap: 10px;
 }
@@ -445,6 +471,10 @@ body.wand-cursor, body.wand-cursor * {
   <div id="zone-title">The Commons</div>
   <a id="back-btn" href="index.html">Back</a>
   <button id="friends-btn" type="button" title="Friends" aria-label="Friends">🤝</button>
+  <div id="net-debug" aria-live="polite">
+    <div id="net-debug-title">Network Debug</div>
+    <div id="net-debug-body">Starting...</div>
+  </div>
   <div id="friends-panel" aria-label="Online friends panel">
     <div class="friends-title">Online Friends</div>
     <div id="friends-list"></div>
@@ -819,6 +849,9 @@ import * as THREE from './vendor/three.module.js';
   const friendSeeStatsBtn = document.getElementById('friend-see-stats-btn');
   const friendTeleportBtn = document.getElementById('friend-teleport-btn');
   const friendToggleBtn = document.getElementById('friend-toggle-btn');
+  const netDebugEl = document.getElementById('net-debug');
+  const netDebugBodyEl = document.getElementById('net-debug-body');
+  const REMOTE_STALE_MS = 25000;
 
   const COOP_ID_KEY = 'wizardDuelClientId';
   const FRIENDS_KEY = 'wizardDuelFriends_v1';
@@ -924,6 +957,33 @@ import * as THREE from './vendor/three.module.js';
     if (!id || !friendsStore[id]) return;
     delete friendsStore[id];
     saveFriendsStore();
+  }
+
+  function pruneStaleRemotes() {
+    const cutoff = Date.now() - REMOTE_STALE_MS;
+    for (const [id, remote] of coop.remoteById.entries()) {
+      if (!remote || (remote.t || 0) < cutoff) {
+        coop.remoteById.delete(id);
+      }
+    }
+  }
+
+  function updateNetworkDebugPanel() {
+    if (!netDebugEl || !netDebugBodyEl) return;
+    netDebugEl.classList.add('visible');
+    const now = Date.now();
+    const peerOpen = !!(coop.peer && !coop.peer.destroyed);
+    const hostConnOpen = !!(coop.hostConn && coop.hostConn.open);
+    const snapshotAge = coop.lastSnapshotReceivedAt ? (now - coop.lastSnapshotReceivedAt) : -1;
+    const remoteCount = coop.remoteById.size;
+    const visibleCount = Array.isArray(window.WIZARD_COOP_PLAYERS) ? window.WIZARD_COOP_PLAYERS.length : 0;
+    netDebugBodyEl.innerHTML =
+      'mode: ' + coop.mode + '<br>' +
+      'peer open: ' + (peerOpen ? 'yes' : 'no') + '<br>' +
+      'host conn: ' + (hostConnOpen ? 'open' : 'closed') + '<br>' +
+      'snapshot age: ' + (snapshotAge < 0 ? 'n/a' : (Math.round(snapshotAge / 100) / 10 + 's')) + '<br>' +
+      'remotes known: ' + remoteCount + '<br>' +
+      'remotes visible: ' + visibleCount;
   }
 
   function sanitizeRemoteState(raw) {
@@ -1232,21 +1292,14 @@ import * as THREE from './vendor/three.module.js';
       if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'snapshot' && Array.isArray(msg.players)) {
         coop.lastSnapshotReceivedAt = Date.now();
-        const seen = new Set();
         msg.players.forEach(p => {
           const parsed = sanitizeRemoteState(p);
           if (!parsed || parsed.id === coop.playerId) return;
-          seen.add(parsed.id);
           const existing = coop.remoteById.get(parsed.id) || {};
           const merged = Object.assign(existing, parsed);
           merged.connPeer = 'host-snapshot';
           coop.remoteById.set(parsed.id, merged);
         });
-        for (const [id, remote] of coop.remoteById.entries()) {
-          if (remote && remote.connPeer === 'host-snapshot' && !seen.has(id)) {
-            coop.remoteById.delete(id);
-          }
-        }
         return;
       }
       if (msg.type === 'battle-action') {
@@ -1255,7 +1308,6 @@ import * as THREE from './vendor/three.module.js';
     });
     conn.on('close', () => {
       setCoopStatus('Global server unavailable. Reconnecting...', true);
-      clearCoopRemotes();
       coop.lastSnapshotReceivedAt = 0;
       scheduleReconnect();
     });
@@ -1311,6 +1363,8 @@ import * as THREE from './vendor/three.module.js';
       }
     }
 
+    pruneStaleRemotes();
+
     const now = performance.now();
     if (now - coop.lastStateSentAt < 120) {
       if (coop.mode === 'host') {
@@ -1352,6 +1406,7 @@ import * as THREE from './vendor/three.module.js';
     }
     publishExternalPlayers(Array.from(coop.remoteById.values()));
     if (friendsPanel && friendsPanel.classList.contains('open')) renderFriendsPanel();
+    updateNetworkDebugPanel();
   }
 
   window.addEventListener('beforeunload', () => {
@@ -6289,6 +6344,7 @@ import * as THREE from './vendor/three.module.js';
   function launchGame() {
     ensureUniversalPlayerState(state.player);
     beginAutoCoop();
+    updateNetworkDebugPanel();
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('game-wrap').style.display = 'block';
     document.getElementById('zone-title').textContent = ZONES[state.zone].name;
