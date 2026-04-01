@@ -871,7 +871,11 @@ import * as THREE from './vendor/three.module.js';
     lastSnapshotAt: 0,
     reconnectHandle: null,
     lastSnapshotReceivedAt: 0,
-    lastHostAttemptAt: 0
+    lastHostAttemptAt: 0,
+    channel: null,
+    lastFallbackReceivedAt: 0,
+    startedAt: 0,
+    lastSelfHealAt: 0
   };
 
   const friendsUi = {
@@ -975,15 +979,54 @@ import * as THREE from './vendor/three.module.js';
     const peerOpen = !!(coop.peer && !coop.peer.destroyed);
     const hostConnOpen = !!(coop.hostConn && coop.hostConn.open);
     const snapshotAge = coop.lastSnapshotReceivedAt ? (now - coop.lastSnapshotReceivedAt) : -1;
+    const fallbackAge = coop.lastFallbackReceivedAt ? (now - coop.lastFallbackReceivedAt) : -1;
     const remoteCount = coop.remoteById.size;
     const visibleCount = Array.isArray(window.WIZARD_COOP_PLAYERS) ? window.WIZARD_COOP_PLAYERS.length : 0;
     netDebugBodyEl.innerHTML =
       'mode: ' + coop.mode + '<br>' +
       'peer open: ' + (peerOpen ? 'yes' : 'no') + '<br>' +
+      'fallback: ' + (coop.channel ? 'on' : 'off') + '<br>' +
       'host conn: ' + (hostConnOpen ? 'open' : 'closed') + '<br>' +
       'snapshot age: ' + (snapshotAge < 0 ? 'n/a' : (Math.round(snapshotAge / 100) / 10 + 's')) + '<br>' +
+      'fallback age: ' + (fallbackAge < 0 ? 'n/a' : (Math.round(fallbackAge / 100) / 10 + 's')) + '<br>' +
       'remotes known: ' + remoteCount + '<br>' +
       'remotes visible: ' + visibleCount;
+  }
+
+  function initLocalFallbackChannel() {
+    if (coop.channel || typeof window.BroadcastChannel === 'undefined') return;
+    try {
+      coop.channel = new BroadcastChannel('wizard-duel-local-fallback-v1');
+      coop.channel.onmessage = (event) => {
+        const msg = event && event.data ? event.data : null;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.senderId === coop.playerId) return;
+        if (msg.type === 'state') {
+          const parsed = sanitizeRemoteState(msg.player);
+          if (!parsed) return;
+          parsed.connPeer = 'broadcast';
+          parsed.t = Date.now();
+          coop.lastFallbackReceivedAt = Date.now();
+          const existing = coop.remoteById.get(parsed.id) || {};
+          coop.remoteById.set(parsed.id, Object.assign(existing, parsed));
+          return;
+        }
+        if (msg.type === 'battle-action') {
+          coop.lastFallbackReceivedAt = Date.now();
+          applyIncomingBattleAction(msg.action);
+        }
+      };
+    } catch (_e) {
+      coop.channel = null;
+    }
+  }
+
+  function sendLocalFallbackMessage(payload) {
+    if (!coop.channel || !payload) return;
+    try {
+      const msg = Object.assign({}, payload, { senderId: coop.playerId, sentAt: Date.now() });
+      coop.channel.postMessage(msg);
+    } catch (_e) { }
   }
 
   function sanitizeRemoteState(raw) {
@@ -1123,6 +1166,7 @@ import * as THREE from './vendor/three.module.js';
   function sendBattleAction(action) {
     if (!action || !coop.started) return;
     sendCoopMessage({ type: 'battle-action', action: action });
+    sendLocalFallbackMessage({ type: 'battle-action', action: action });
   }
 
   function snapshotBattleHp(b) {
@@ -1346,6 +1390,8 @@ import * as THREE from './vendor/three.module.js';
     }
 
     coop.started = true;
+    coop.startedAt = Date.now();
+    initLocalFallbackChannel();
     clearCoopRemotes();
     setCoopStatus('Connecting to global multiplayer...', false);
     startAsHost();
@@ -1365,17 +1411,36 @@ import * as THREE from './vendor/three.module.js';
 
     pruneStaleRemotes();
 
+    if (coop.remoteById.size > 0) {
+      coop.lastSelfHealAt = 0;
+    } else {
+      const nowMs = Date.now();
+      const oldEnough = coop.startedAt > 0 && (nowMs - coop.startedAt > 9000);
+      const canHeal = coop.lastSelfHealAt === 0 || (nowMs - coop.lastSelfHealAt > 12000);
+      if (oldEnough && canHeal && coop.mode === 'guest') {
+        coop.lastSelfHealAt = nowMs;
+        try {
+          if (coop.hostConn) coop.hostConn.close();
+        } catch (_e) { }
+        coop.hostConn = null;
+        connectGuestToHost();
+      }
+    }
+
     const now = performance.now();
     if (now - coop.lastStateSentAt < 120) {
+      sendLocalFallbackMessage({ type: 'state', player: getLocalCoopState() });
       if (coop.mode === 'host') {
         publishExternalPlayers(Array.from(coop.remoteById.values()));
         if (friendsPanel && friendsPanel.classList.contains('open')) renderFriendsPanel();
       }
+      updateNetworkDebugPanel();
       return;
     }
     coop.lastStateSentAt = now;
 
     const myState = getLocalCoopState();
+    sendLocalFallbackMessage({ type: 'state', player: myState });
     if (coop.mode === 'host') {
       const staleCutoff = Date.now() - 15000;
       for (const [id, remote] of coop.remoteById.entries()) {
@@ -1418,6 +1483,7 @@ import * as THREE from './vendor/three.module.js';
       if (coop.hostConn) coop.hostConn.close();
       coop.guestConns.forEach(conn => conn && conn.close && conn.close());
       if (coop.peer) coop.peer.destroy();
+      if (coop.channel) coop.channel.close();
     } catch (_e) { }
   });
 
