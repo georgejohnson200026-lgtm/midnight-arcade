@@ -852,6 +852,7 @@ import * as THREE from './vendor/three.module.js';
   const netDebugEl = document.getElementById('net-debug');
   const netDebugBodyEl = document.getElementById('net-debug-body');
   const REMOTE_STALE_MS = 25000;
+  const REMOTE_RENDER_HOLD_MS = 90000;
   const GUEST_SNAPSHOT_TIMEOUT_MS = 2500;
 
   const COOP_ID_KEY = 'wizardDuelClientId';
@@ -883,7 +884,8 @@ import * as THREE from './vendor/three.module.js';
     startedAt: 0,
     lastSelfHealAt: 0,
     snapshotWatchHandle: null,
-    meshConns: new Map()
+    meshConns: new Map(),
+    retainedById: new Map()
   };
 
   const friendsUi = {
@@ -942,16 +944,38 @@ import * as THREE from './vendor/three.module.js';
 
   function publishExternalPlayers(list) {
     const me = coop.playerId;
+    const now = Date.now();
     const online = (list || []).filter(p => p && p.id && p.id !== me).map(p => {
       const copy = Object.assign({}, p);
       copy.zone = normalizeZoneId(copy.zone);
+      copy._seenAt = now;
       return copy;
     });
+
+    online.forEach(remote => {
+      coop.retainedById.set(remote.id, remote);
+    });
+
+    for (const [id, remote] of coop.retainedById.entries()) {
+      if (!remote || (now - (remote._seenAt || 0)) > REMOTE_RENDER_HOLD_MS) {
+        coop.retainedById.delete(id);
+      }
+    }
+
+    const mergedById = new Map();
+    for (const [id, remote] of coop.retainedById.entries()) {
+      mergedById.set(id, remote);
+    }
+    online.forEach(remote => {
+      mergedById.set(remote.id, remote);
+    });
+    const merged = Array.from(mergedById.values());
+
     const myZone = normalizeZoneId(state.zone);
-    const sameZone = online.filter(p => normalizeZoneId(p.zone) === myZone);
-    window.WIZARD_COOP_ONLINE = online;
+    const sameZone = merged.filter(p => normalizeZoneId(p.zone) === myZone);
+    window.WIZARD_COOP_ONLINE = merged;
     window.WIZARD_COOP_PLAYERS = sameZone;
-    window.WIZARD_COOP_RENDER_PLAYERS = sameZone.length ? sameZone : online;
+    window.WIZARD_COOP_RENDER_PLAYERS = sameZone.length ? sameZone : merged;
   }
 
   function loadFriendsStore() {
@@ -1014,6 +1038,7 @@ import * as THREE from './vendor/three.module.js';
     const remoteCount = coop.remoteById.size;
     const visibleCount = Array.isArray(window.WIZARD_COOP_PLAYERS) ? window.WIZARD_COOP_PLAYERS.length : 0;
     const renderCount = Array.isArray(window.WIZARD_COOP_RENDER_PLAYERS) ? window.WIZARD_COOP_RENDER_PLAYERS.length : 0;
+    const heldCount = coop.retainedById ? coop.retainedById.size : 0;
     const sample = Array.from(coop.remoteById.values())[0] || null;
     const sampleZone = sample ? normalizeZoneId(sample.zone) : 'n/a';
     netDebugBodyEl.innerHTML =
@@ -1029,7 +1054,8 @@ import * as THREE from './vendor/three.module.js';
       'sample zone: ' + sampleZone + '<br>' +
       'remotes known: ' + remoteCount + '<br>' +
       'remotes visible: ' + visibleCount + '<br>' +
-      'remotes render: ' + renderCount;
+        'remotes render: ' + renderCount + '<br>' +
+        'remotes held: ' + heldCount;
   }
 
   function initLocalFallbackChannel() {
@@ -1373,9 +1399,6 @@ import * as THREE from './vendor/three.module.js';
     });
     conn.on('close', () => {
       coop.guestConns = coop.guestConns.filter(c => c !== conn);
-      for (const [id, remote] of coop.remoteById.entries()) {
-        if (remote && remote.connPeer === conn.peer) coop.remoteById.delete(id);
-      }
     });
   }
 
