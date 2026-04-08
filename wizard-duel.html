@@ -582,6 +582,9 @@ body.wand-cursor, body.wand-cursor * {
 </div>
 <div id="spell-animation-layer"></div>
 
+<script src="./firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module">
 import * as THREE from './vendor/three.module.js';
@@ -857,7 +860,14 @@ import * as THREE from './vendor/three.module.js';
     snapshotWatchHandle: null,
     meshConns: new Map(),
     retainedById: new Map(),
-    localSeq: 0
+    localSeq: 0,
+    firebaseEnabled: false,
+    firebaseApp: null,
+    firebaseDb: null,
+    firebaseLobbyRef: null,
+    firebasePresenceRef: null,
+    firebaseUnsubscribe: null,
+    firebaseLastWriteAt: 0
   };
 
   const friendsUi = {
@@ -903,6 +913,8 @@ import * as THREE from './vendor/three.module.js';
       x: state.player.x,
       z: state.player.z,
       yaw: state.player.yaw,
+      jumpY: state.player.jumpY,
+      jumpV: state.player.jumpV,
       hp: state.player.hp,
       maxHp: state.player.maxHp,
       mana: state.player.mana,
@@ -949,7 +961,7 @@ import * as THREE from './vendor/three.module.js';
     const sameZone = merged.filter(p => normalizeZoneId(p.zone) === myZone);
     window.WIZARD_COOP_ONLINE = merged;
     window.WIZARD_COOP_PLAYERS = sameZone;
-    window.WIZARD_COOP_RENDER_PLAYERS = sameZone.length ? sameZone : merged;
+    window.WIZARD_COOP_RENDER_PLAYERS = sameZone;
   }
 
   function loadFriendsStore() {
@@ -1064,6 +1076,64 @@ import * as THREE from './vendor/three.module.js';
     }
   }
 
+  function hasUsableFirebaseConfig() {
+    const cfg = window.MA_FIREBASE_CONFIG;
+    if (!cfg || typeof cfg !== 'object') return false;
+    return !!(cfg.apiKey && cfg.databaseURL && !String(cfg.apiKey).includes('REPLACE_ME') && !String(cfg.databaseURL).includes('REPLACE_ME'));
+  }
+
+  function initFirebasePresence() {
+    if (coop.firebaseEnabled || !hasUsableFirebaseConfig()) return;
+    if (!window.firebase || !window.firebase.initializeApp || !window.firebase.database) return;
+    try {
+      const appName = 'wizard-duel-coop';
+      let app = null;
+      try {
+        app = window.firebase.app(appName);
+      } catch (_e) {
+        app = window.firebase.initializeApp(window.MA_FIREBASE_CONFIG, appName);
+      }
+      coop.firebaseApp = app;
+      coop.firebaseDb = window.firebase.database(app);
+      coop.firebaseLobbyRef = coop.firebaseDb.ref('wizardDuelPresence/' + GLOBAL_LOBBY_ID);
+      coop.firebasePresenceRef = coop.firebaseLobbyRef.child(coop.playerId);
+      coop.firebasePresenceRef.onDisconnect().remove();
+      coop.firebaseLobbyRef.on('value', (snapshot) => {
+        const seen = [];
+        snapshot.forEach((child) => {
+          const parsed = sanitizeRemoteState(child.val());
+          if (!parsed) return;
+          parsed.t = typeof parsed.t === 'number' ? parsed.t : Date.now();
+          upsertRemoteState(parsed, 'firebase');
+          seen.push(parsed);
+        });
+        if (seen.length || coop.remoteById.size) {
+          publishExternalPlayers(Array.from(coop.remoteById.values()));
+          if (friendsPanel && friendsPanel.classList.contains('open')) renderFriendsPanel();
+        }
+      });
+      coop.firebaseEnabled = true;
+    } catch (_e) {
+      coop.firebaseEnabled = false;
+    }
+  }
+
+  function tearDownFirebasePresence() {
+    if (coop.firebasePresenceRef) {
+      try { coop.firebasePresenceRef.remove(); } catch (_e) { }
+    }
+    if (coop.firebaseLobbyRef) {
+      try { coop.firebaseLobbyRef.off(); } catch (_e) { }
+    }
+    coop.firebaseEnabled = false;
+    coop.firebaseApp = null;
+    coop.firebaseDb = null;
+    coop.firebaseLobbyRef = null;
+    coop.firebasePresenceRef = null;
+    coop.firebaseUnsubscribe = null;
+    coop.firebaseLastWriteAt = 0;
+  }
+
   function sendLocalFallbackMessage(payload) {
     if (!coop.channel || !payload) return;
     try {
@@ -1086,6 +1156,8 @@ import * as THREE from './vendor/three.module.js';
       x: raw.x,
       z: raw.z,
       yaw: raw.yaw,
+      jumpY: typeof raw.jumpY === 'number' ? Math.max(0, Math.min(2.2, raw.jumpY)) : 0,
+      jumpV: typeof raw.jumpV === 'number' ? Math.max(-16, Math.min(16, raw.jumpV)) : 0,
       hp: typeof raw.hp === 'number' ? raw.hp : 1,
       maxHp: typeof raw.maxHp === 'number' ? raw.maxHp : 1,
       mana: typeof raw.mana === 'number' ? raw.mana : 0,
@@ -1529,7 +1601,10 @@ import * as THREE from './vendor/three.module.js';
   function beginAutoCoop() {
     if (coop.started) return;
 
-    if (typeof window.Peer === 'undefined') {
+    const canUsePeer = typeof window.Peer !== 'undefined';
+    const canUseFirebase = hasUsableFirebaseConfig() && !!window.firebase;
+
+    if (!canUsePeer && !canUseFirebase) {
       setCoopStatus('Global multiplayer failed to load (PeerJS unavailable).', true);
       return;
     }
@@ -1537,9 +1612,15 @@ import * as THREE from './vendor/three.module.js';
     coop.started = true;
     coop.startedAt = Date.now();
     initLocalFallbackChannel();
+    initFirebasePresence();
     clearCoopRemotes();
-    setCoopStatus('Connecting to global multiplayer...', false);
-    startAsHost();
+    if (canUsePeer) {
+      setCoopStatus('Connecting to global multiplayer...', false);
+      startAsHost();
+    } else {
+      coop.mode = 'cloud';
+      setCoopStatus('Cloud presence active. Remote wizards will sync through Firebase.', false);
+    }
   }
 
   function tickCoopNetwork() {
@@ -1585,6 +1666,10 @@ import * as THREE from './vendor/three.module.js';
     coop.lastStateSentAt = now;
 
     const myState = getLocalCoopState();
+    if (coop.firebaseEnabled && coop.firebasePresenceRef && (now - coop.firebaseLastWriteAt >= 150)) {
+      coop.firebaseLastWriteAt = now;
+      try { coop.firebasePresenceRef.set(myState); } catch (_e) { }
+    }
     sendLocalFallbackMessage({ type: 'state', player: myState });
     if (coop.mode === 'host') {
       const staleCutoff = Date.now() - 15000;
@@ -1631,6 +1716,7 @@ import * as THREE from './vendor/three.module.js';
       coop.meshConns.forEach(conn => conn && conn.close && conn.close());
       if (coop.peer) coop.peer.destroy();
       if (coop.channel) coop.channel.close();
+      tearDownFirebasePresence();
     } catch (_e) { }
   });
 
@@ -1808,9 +1894,12 @@ import * as THREE from './vendor/three.module.js';
   let sidePondMesh = null;
   let fountainWater = null;
   let fountainDrops = [];
+  let fountainArcDrops = [];
+  let fountainPourStreams = [];
   let waterfallSheet = null;
   let streamMeshes = [];
   let pondRippleRings = [];
+  let fountainBasinLayers = [];
   let worldTime = 0;
   let buildingObjects = [];
   let battleStage = null;
@@ -1854,7 +1943,7 @@ import * as THREE from './vendor/three.module.js';
   }
 
   function colorForZone(zoneId) {
-    if (zoneId === 'commons') return { bg: 0x203d6d, fog: 0x203d6d, ground: 0x2f5827 };
+    if (zoneId === 'commons') return { bg: 0x203d6d, fog: 0x203d6d, ground: 0x4c5c3d };
     if (zoneId === 'triton') return { bg: 0x132447, fog: 0x132447, ground: 0x244366 };
     if (zoneId === 'firecat') return { bg: 0x2a1008, fog: 0x2a1008, ground: 0x4a2a16 };
     if (zoneId === 'cyclops') return { bg: 0x2f2238, fog: 0x2f2238, ground: 0x4a3b2f };
@@ -1938,9 +2027,12 @@ import * as THREE from './vendor/three.module.js';
     sidePondMesh = null;
     fountainWater = null;
     fountainDrops = [];
+    fountainArcDrops = [];
+    fountainPourStreams = [];
     waterfallSheet = null;
     streamMeshes = [];
     pondRippleRings = [];
+    fountainBasinLayers = [];
   }
 
   function makeNameSpriteTexture(text) {
@@ -2045,7 +2137,8 @@ import * as THREE from './vendor/three.module.js';
     root.rotation.y = remote.yaw;
     remoteAvatarRoot.add(root);
 
-    return { root, label, labelTex, phase: Math.random() * Math.PI * 2 };
+    const rig = root.children.length ? (root.children[0].userData && root.children[0].userData.animRig ? root.children[0].userData.animRig : null) : null;
+    return { root, label, labelTex, phase: Math.random() * Math.PI * 2, rig: rig, prevX: remote.x, prevZ: remote.z };
   }
 
   function disposeRemoteAvatar(entry) {
@@ -2068,11 +2161,24 @@ import * as THREE from './vendor/three.module.js';
         remoteAvatarMeshes.set(remote.id, entry);
       }
       const lerpT = Math.min(1, dt * 10);
+      const dx = remote.x - entry.root.position.x;
+      const dz = remote.z - entry.root.position.z;
       entry.root.position.x += (remote.x - entry.root.position.x) * lerpT;
       entry.root.position.z += (remote.z - entry.root.position.z) * lerpT;
       entry.phase = (entry.phase || 0) + dt * 2.2;
-      entry.root.position.y = Math.sin(entry.phase) * 0.015;
+      const remoteJumpY = typeof remote.jumpY === 'number' ? Math.max(0, remote.jumpY) : 0;
+      const idleBob = remoteJumpY > 0.001 ? 0 : Math.sin(entry.phase) * 0.015;
+      entry.root.position.y = remoteJumpY + idleBob;
+      if (entry.rig) {
+        const planarSpeed = Math.sqrt(dx * dx + dz * dz) / Math.max(dt, 0.0001);
+        const moveState = planarSpeed > 2.6 ? 'run' : (planarSpeed > 0.22 ? 'strafe' : 'idle');
+        const speedNorm = Math.min(1, planarSpeed / 7.0);
+        const jumpBlend = Math.min(1, remoteJumpY / 1.35);
+        animateWizardRig(entry.rig, dt, moveState, speedNorm, jumpBlend);
+      }
       entry.root.rotation.y = remote.yaw;
+      entry.prevX = remote.x;
+      entry.prevZ = remote.z;
       if (entry.labelTex && (entry._name !== remote.name)) {
         if (entry.labelTex.dispose) entry.labelTex.dispose();
         entry._name = remote.name;
@@ -4630,24 +4736,24 @@ import * as THREE from './vendor/three.module.js';
 
     // Connector road from Commons tunnel to the circular road.
     const connector = new THREE.Mesh(
-      new THREE.PlaneGeometry(12.5, 27),
+      new THREE.PlaneGeometry(12.5, 52),
       new THREE.MeshStandardMaterial({ color: 0x5b6464, roughness: 0.95 })
     );
     connector.rotation.x = -Math.PI / 2;
-    connector.position.set(0, 0.08, 73.0);
+    connector.position.set(0, 0.08, 62.0);
     world.add(connector);
 
-    const connectorEdgeL = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 27), new THREE.MeshStandardMaterial({ color: 0x8b8d84, roughness: 0.9 }));
+    const connectorEdgeL = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 52), new THREE.MeshStandardMaterial({ color: 0x8b8d84, roughness: 0.9 }));
     connectorEdgeL.rotation.x = -Math.PI / 2;
-    connectorEdgeL.position.set(-6.25, 0.1, 73.0);
+    connectorEdgeL.position.set(-6.25, 0.1, 62.0);
     world.add(connectorEdgeL);
     const connectorEdgeR = connectorEdgeL.clone();
     connectorEdgeR.position.x = 6.25;
     world.add(connectorEdgeR);
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       const tile = new THREE.Mesh(new THREE.BoxGeometry(10.8, 0.08, 1.8), ringTileMat);
-      tile.position.set(0, 0.13, 61.0 + i * 2.4);
+      tile.position.set(0, 0.13, 39.0 + i * 2.4);
       world.add(tile);
     }
 
@@ -5025,11 +5131,228 @@ import * as THREE from './vendor/three.module.js';
     }
 
     if (state.zone === 'commons') {
-      const waterGeo = new THREE.CircleGeometry(43.6, 160);
-      waterMesh = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x3177c6, transparent: true, opacity: 0.72, roughness: 0.2, side: THREE.DoubleSide }));
+      const poolFloorOuter = new THREE.Mesh(
+        new THREE.CircleGeometry(43.25, 220),
+        new THREE.MeshStandardMaterial({ color: 0x31526a, roughness: 0.9, metalness: 0.02, side: THREE.DoubleSide })
+      );
+      poolFloorOuter.rotation.x = -Math.PI / 2;
+      poolFloorOuter.position.set(0, 0.01, 0);
+      world.add(poolFloorOuter);
+
+      const poolFloorInner = new THREE.Mesh(
+        new THREE.CircleGeometry(19.5, 160),
+        new THREE.MeshStandardMaterial({ color: 0x203b52, roughness: 0.84, metalness: 0.03, side: THREE.DoubleSide })
+      );
+      poolFloorInner.rotation.x = -Math.PI / 2;
+      poolFloorInner.position.set(0, 0.013, 0);
+      world.add(poolFloorInner);
+
+      const poolDepthRing = new THREE.Mesh(
+        new THREE.RingGeometry(19.5, 42.9, 220),
+        new THREE.MeshStandardMaterial({ color: 0x426884, roughness: 0.9, metalness: 0.01, side: THREE.DoubleSide })
+      );
+      poolDepthRing.rotation.x = -Math.PI / 2;
+      poolDepthRing.position.set(0, 0.012, 0);
+      world.add(poolDepthRing);
+
+      const poolDepthCore = new THREE.Mesh(
+        new THREE.CircleGeometry(13.8, 140),
+        new THREE.MeshStandardMaterial({ color: 0x0b2e4f, roughness: 0.92, metalness: 0.01, transparent: true, opacity: 0.78, side: THREE.DoubleSide })
+      );
+      poolDepthCore.rotation.x = -Math.PI / 2;
+      poolDepthCore.position.set(0, 0.014, 0);
+      world.add(poolDepthCore);
+
+      const poolDepthShelf = new THREE.Mesh(
+        new THREE.RingGeometry(13.8, 33.8, 220),
+        new THREE.MeshStandardMaterial({ color: 0x1f4969, roughness: 0.9, metalness: 0.01, transparent: true, opacity: 0.56, side: THREE.DoubleSide })
+      );
+      poolDepthShelf.rotation.x = -Math.PI / 2;
+      poolDepthShelf.position.set(0, 0.0145, 0);
+      world.add(poolDepthShelf);
+
+      const poolInnerWall = new THREE.Mesh(
+        new THREE.CylinderGeometry(43.0, 43.0, 1.24, 120, 1, true),
+        new THREE.MeshStandardMaterial({ color: 0x5d7b8e, roughness: 0.94, metalness: 0.02, side: THREE.DoubleSide, transparent: true, opacity: 0.76 })
+      );
+      poolInnerWall.position.set(0, -0.56, 0);
+      world.add(poolInnerWall);
+
+      const waterGeo = new THREE.CircleGeometry(43.6, 220);
+      waterMesh = new THREE.Mesh(
+        waterGeo,
+        new THREE.MeshStandardMaterial({
+          color: 0x0a2f53,
+          emissive: 0x061c34,
+          emissiveIntensity: 0.14,
+          transparent: true,
+          opacity: 0.985,
+          roughness: 0.16,
+          metalness: 0.01,
+          side: THREE.DoubleSide
+        })
+      );
       waterMesh.rotation.x = -Math.PI / 2;
       waterMesh.position.set(0, 0.04, 0);
       world.add(waterMesh);
+
+      const nearFountainWater = new THREE.Mesh(
+        new THREE.CircleGeometry(16.2, 160),
+        new THREE.MeshStandardMaterial({
+          color: 0x082746,
+          emissive: 0x05172c,
+          emissiveIntensity: 0.08,
+          transparent: true,
+          opacity: 0.96,
+          roughness: 0.2,
+          metalness: 0.02,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        })
+      );
+      nearFountainWater.rotation.x = -Math.PI / 2;
+      nearFountainWater.position.set(0, 0.052, 0);
+      nearFountainWater.userData.rotSpeed = 0;
+      nearFountainWater.userData.opacityBase = 0.96;
+      nearFountainWater.userData.opacityAmp = 0;
+      nearFountainWater.userData.phase = 0.3;
+      nearFountainWater.userData.scaleAmp = 0;
+      fountainBasinLayers.push(nearFountainWater);
+      world.add(nearFountainWater);
+
+      const basinShimmerA = new THREE.Mesh(
+        new THREE.RingGeometry(36.2, 42.6, 180),
+        new THREE.MeshStandardMaterial({
+          color: 0x4f8ebb,
+          emissive: 0x24567c,
+          emissiveIntensity: 0.14,
+          transparent: true,
+          opacity: 0.08,
+          roughness: 0.12,
+          metalness: 0.05,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      basinShimmerA.rotation.x = -Math.PI / 2;
+      basinShimmerA.position.set(0, 0.055, 0);
+      basinShimmerA.userData.rotSpeed = 0.002;
+      basinShimmerA.userData.opacityBase = 0.08;
+      basinShimmerA.userData.opacityAmp = 0.004;
+      basinShimmerA.userData.phase = 0.0;
+      basinShimmerA.userData.scaleAmp = 0.0008;
+      fountainBasinLayers.push(basinShimmerA);
+      world.add(basinShimmerA);
+
+      const basinShimmerB = new THREE.Mesh(
+        new THREE.RingGeometry(39.6, 43.4, 180),
+        new THREE.MeshStandardMaterial({
+          color: 0x65a6cf,
+          emissive: 0x2f6993,
+          emissiveIntensity: 0.12,
+          transparent: true,
+          opacity: 0.07,
+          roughness: 0.12,
+          metalness: 0.04,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      basinShimmerB.rotation.x = -Math.PI / 2;
+      basinShimmerB.position.set(0, 0.062, 0);
+      basinShimmerB.userData.rotSpeed = -0.0018;
+      basinShimmerB.userData.opacityBase = 0.07;
+      basinShimmerB.userData.opacityAmp = 0.004;
+      basinShimmerB.userData.phase = 1.7;
+      basinShimmerB.userData.scaleAmp = 0.0008;
+      fountainBasinLayers.push(basinShimmerB);
+      world.add(basinShimmerB);
+
+      const basinFoamRing = new THREE.Mesh(
+        new THREE.TorusGeometry(43.15, 0.19, 10, 120),
+        new THREE.MeshStandardMaterial({
+          color: 0xbde9ff,
+          emissive: 0x6ec7ff,
+          emissiveIntensity: 0.35,
+          transparent: true,
+          opacity: 0.72,
+          roughness: 0.22,
+          metalness: 0.0
+        })
+      );
+      basinFoamRing.rotation.x = Math.PI / 2;
+      basinFoamRing.position.set(0, 0.073, 0);
+      basinFoamRing.userData.rotSpeed = 0.0012;
+      basinFoamRing.userData.opacityBase = 0.36;
+      basinFoamRing.userData.opacityAmp = 0.015;
+      basinFoamRing.userData.phase = 2.4;
+      basinFoamRing.userData.scaleAmp = 0.0007;
+      fountainBasinLayers.push(basinFoamRing);
+      world.add(basinFoamRing);
+
+      for (let i = 0; i < 26; i++) {
+        const ang = (i / 26) * Math.PI * 2;
+        const stone = new THREE.Mesh(
+          new THREE.BoxGeometry(2.2 + Math.random() * 0.6, 0.26 + Math.random() * 0.08, 0.9 + Math.random() * 0.2),
+          new THREE.MeshStandardMaterial({ color: 0xb8c2cd, roughness: 0.72, metalness: 0.1 })
+        );
+        const r = 43.95;
+        stone.position.set(Math.cos(ang) * r, 0.28, Math.sin(ang) * r);
+        stone.rotation.y = ang + Math.PI * 0.5;
+        stone.rotation.x = (Math.random() - 0.5) * 0.04;
+        stone.rotation.z = (Math.random() - 0.5) * 0.04;
+        world.add(stone);
+      }
+
+      let grassRockCount = 0;
+      let grassRockAttempts = 0;
+      while (grassRockCount < 32 && grassRockAttempts < 280) {
+        grassRockAttempts++;
+        const ang = Math.random() * Math.PI * 2;
+        const r = 62 + Math.random() * 52;
+        const rx = Math.cos(ang) * r;
+        const rz = Math.sin(ang) * r;
+        if (pointNearAnyGate(state.zone, rx, rz, 15)) continue;
+        if (pointInsideRoadCorridor(rx, rz)) continue;
+        const size = 0.5 + Math.random() * 1.2;
+        const rock = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(size, 0),
+          new THREE.MeshStandardMaterial({ color: 0x7a7f86, roughness: 0.93, metalness: 0.02 })
+        );
+        rock.position.set(rx, size * (0.48 + Math.random() * 0.22), rz);
+        rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        world.add(rock);
+        grassRockCount++;
+
+        if (Math.random() < 0.45) {
+          const pebble = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(size * 0.42, 0),
+            new THREE.MeshStandardMaterial({ color: 0x8d949b, roughness: 0.96, metalness: 0.01 })
+          );
+          pebble.position.set(
+            rock.position.x + (Math.random() - 0.5) * 1.4,
+            size * 0.25,
+            rock.position.z + (Math.random() - 0.5) * 1.4
+          );
+          pebble.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+          world.add(pebble);
+        }
+      }
+
+      for (let i = 0; i < 22; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const r = 8.5 + Math.random() * 30;
+        const size = 0.22 + Math.random() * 0.62;
+        const submerged = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(size, 0),
+          new THREE.MeshStandardMaterial({ color: 0x658195, roughness: 0.94, metalness: 0.01 })
+        );
+        submerged.position.set(Math.cos(ang) * r, 0.014 + size * 0.16, Math.sin(ang) * r);
+        submerged.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        world.add(submerged);
+      }
 
       const pondRing = new THREE.Mesh(new THREE.TorusGeometry(43.9, 0.7, 16, 120), new THREE.MeshStandardMaterial({ color: 0x99a8b3, roughness: 0.82 }));
       pondRing.rotation.x = Math.PI / 2;
@@ -5126,34 +5449,164 @@ import * as THREE from './vendor/three.module.js';
         }
       });
 
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 4.9, 1.7, 26), new THREE.MeshStandardMaterial({ color: 0x6f8194 }));
-      base.position.set(0, 0.85, 0);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 7.1, 2.3, 34), new THREE.MeshStandardMaterial({ color: 0x6f8194, roughness: 0.84 }));
+      base.position.set(0, 1.15, 0);
       world.add(base);
 
-      const bowl = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.42, 16, 32), new THREE.MeshStandardMaterial({ color: 0x8ca4ba }));
+      const baseTrim = new THREE.Mesh(
+        new THREE.TorusGeometry(6.25, 0.18, 12, 72),
+        new THREE.MeshStandardMaterial({ color: 0x9eacbb, roughness: 0.66, metalness: 0.12 })
+      );
+      baseTrim.rotation.x = Math.PI / 2;
+      baseTrim.position.set(0, 2.25, 0);
+      world.add(baseTrim);
+
+      const capPlate = new THREE.Mesh(
+        new THREE.CylinderGeometry(4.8, 5.2, 0.28, 48),
+        new THREE.MeshStandardMaterial({ color: 0xb3bcc9, roughness: 0.74, metalness: 0.08 })
+      );
+      capPlate.position.set(0, 2.42, 0);
+      world.add(capPlate);
+
+      const capBevel = new THREE.Mesh(
+        new THREE.TorusGeometry(5.0, 0.11, 10, 72),
+        new THREE.MeshStandardMaterial({ color: 0xd3dbe5, roughness: 0.56, metalness: 0.18 })
+      );
+      capBevel.rotation.x = Math.PI / 2;
+      capBevel.position.set(0, 2.58, 0);
+      world.add(capBevel);
+
+      for (let i = 0; i < 12; i++) {
+        const seam = new THREE.Mesh(
+          new THREE.BoxGeometry(0.05, 0.03, 4.7),
+          new THREE.MeshStandardMaterial({ color: 0x9da7b6, roughness: 0.82 })
+        );
+        seam.position.set(0, 2.6, 0);
+        seam.rotation.y = (i / 12) * Math.PI * 2;
+        seam.scale.z = 0.96;
+        world.add(seam);
+      }
+
+      const bowl = new THREE.Mesh(new THREE.TorusGeometry(4.3, 0.5, 18, 40), new THREE.MeshStandardMaterial({ color: 0x8ca4ba, roughness: 0.74 }));
       bowl.rotation.x = Math.PI / 2;
-      bowl.position.set(0, 1.58, 0);
+      bowl.position.set(0, 2.85, 0);
       world.add(bowl);
 
-      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.82, 3.9, 16), new THREE.MeshStandardMaterial({ color: 0x7189a0 }));
-      pillar.position.set(0, 3.3, 0);
+      const midBowl = new THREE.Mesh(
+        new THREE.TorusGeometry(2.35, 0.28, 14, 28),
+        new THREE.MeshStandardMaterial({ color: 0x9baec2, roughness: 0.72, metalness: 0.12 })
+      );
+      midBowl.rotation.x = Math.PI / 2;
+      midBowl.position.set(0, 4.7, 0);
+      world.add(midBowl);
+
+      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 1.02, 5.5, 18), new THREE.MeshStandardMaterial({ color: 0x7189a0, roughness: 0.76 }));
+      pillar.position.set(0, 4.95, 0);
       world.add(pillar);
 
-      fountainWater = new THREE.Mesh(new THREE.CircleGeometry(2.5, 24), new THREE.MeshStandardMaterial({ color: 0x79b8ff, transparent: true, opacity: 0.75, side: THREE.DoubleSide }));
+      const nozzle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.36, 0.42, 1.1, 16),
+        new THREE.MeshStandardMaterial({ color: 0xa5b8ca, roughness: 0.62, metalness: 0.2 })
+      );
+      nozzle.position.set(0, 7.05, 0);
+      world.add(nozzle);
+
+      fountainWater = new THREE.Mesh(
+        new THREE.CircleGeometry(4.15, 72),
+        new THREE.MeshStandardMaterial({
+          color: 0x8bc8ff,
+          emissive: 0x3f8bc8,
+          emissiveIntensity: 0.22,
+          transparent: true,
+          opacity: 0.82,
+          roughness: 0.08,
+          metalness: 0.12,
+          side: THREE.DoubleSide
+        })
+      );
       fountainWater.rotation.x = -Math.PI / 2;
-      fountainWater.position.set(0, 1.62, 0);
+      fountainWater.position.set(0, 2.44, 0);
       world.add(fountainWater);
 
-      for (let i = 0; i < 26; i++) {
+      const fountainInnerShimmer = new THREE.Mesh(
+        new THREE.RingGeometry(1.4, 4.0, 72),
+        new THREE.MeshStandardMaterial({
+          color: 0xbbe7ff,
+          emissive: 0x7dd1ff,
+          emissiveIntensity: 0.24,
+          transparent: true,
+          opacity: 0.36,
+          roughness: 0.05,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      fountainInnerShimmer.rotation.x = -Math.PI / 2;
+      fountainInnerShimmer.position.set(0, 2.46, 0);
+      fountainInnerShimmer.userData.rotSpeed = -0.08;
+      fountainInnerShimmer.userData.opacityBase = 0.26;
+      fountainInnerShimmer.userData.opacityAmp = 0.03;
+      fountainInnerShimmer.userData.phase = 0.4;
+      fountainInnerShimmer.userData.scaleAmp = 0.006;
+      fountainBasinLayers.push(fountainInnerShimmer);
+      world.add(fountainInnerShimmer);
+
+      for (let i = 0; i < 44; i++) {
         const d = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), new THREE.MeshBasicMaterial({ color: 0xa6d7ff }));
-        const ang = (i / 26) * Math.PI * 2;
-        const rad = 0.6 + Math.random() * 0.35;
-        d.position.set(Math.cos(ang) * rad, 4.95 + Math.random() * 0.55, Math.sin(ang) * rad);
-        d.userData.v = 0.05 + Math.random() * 0.05;
-        d.userData.ox = Math.cos(ang) * rad;
-        d.userData.oz = Math.sin(ang) * rad;
+        d.userData.sourceY = 7.2;
+        d.userData.landY = 2.45;
+        d.userData.originR = 0.12 + Math.random() * 0.32;
+        d.userData.originA = Math.random() * Math.PI * 2;
+        resetFountainDrop(d, true);
         world.add(d);
         fountainDrops.push(d);
+      }
+
+      for (let i = 0; i < 12; i++) {
+        const jet = new THREE.Mesh(
+          new THREE.SphereGeometry(0.06 + Math.random() * 0.02, 8, 8),
+          new THREE.MeshStandardMaterial({ color: 0xc8eeff, emissive: 0x67b6e6, emissiveIntensity: 0.35, roughness: 0.14 })
+        );
+        jet.userData.baseAngle = (i / 12) * Math.PI * 2;
+        jet.userData.orbit = 5.0 + Math.random() * 3.1;
+        jet.userData.h = 1.8 + Math.random() * 0.9;
+        jet.userData.speed = 0.58 + Math.random() * 0.46;
+        jet.userData.phase = Math.random();
+        world.add(jet);
+        fountainArcDrops.push(jet);
+      }
+
+      const pourMat = new THREE.MeshStandardMaterial({
+        color: 0xb9e8ff,
+        emissive: 0x74c8ff,
+        emissiveIntensity: 0.34,
+        transparent: true,
+        opacity: 0.8,
+        roughness: 0.14,
+        metalness: 0.03
+      });
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const start = new THREE.Vector3(Math.cos(a) * 0.46, 7.22, Math.sin(a) * 0.46);
+        const end = new THREE.Vector3(Math.cos(a) * (7.2 + Math.random() * 2.0), 0.065, Math.sin(a) * (7.2 + Math.random() * 2.0));
+        const control = new THREE.Vector3(Math.cos(a) * 3.25, 8.65 + Math.random() * 0.55, Math.sin(a) * 3.25);
+        const curve = new THREE.QuadraticBezierCurve3(start, control, end);
+        const stream = new THREE.Mesh(new THREE.TubeGeometry(curve, 34, 0.072 + Math.random() * 0.022, 12, false), pourMat.clone());
+        world.add(stream);
+        const drops = [];
+        for (let j = 0; j < 3; j++) {
+          const drop = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05 + Math.random() * 0.015, 8, 8),
+            new THREE.MeshStandardMaterial({ color: 0xd5f2ff, emissive: 0x86d7ff, emissiveIntensity: 0.42, roughness: 0.2 })
+          );
+          drop.userData.offset = j * 0.5;
+          drop.userData.speed = 2.2 + Math.random() * 1.1;
+          drop.userData.phase = Math.random();
+          world.add(drop);
+          drops.push(drop);
+        }
+        fountainPourStreams.push({ mesh: stream, curve: curve, drops: drops, phase: Math.random(), speed: 1.9 + Math.random() * 0.8 });
       }
     }
 
@@ -5212,6 +5665,34 @@ import * as THREE from './vendor/three.module.js';
     const dx = ax - bx;
     const dz = az - bz;
     return Math.sqrt(dx * dx + dz * dz);
+  }
+
+  function resetFountainDrop(drop, randomPhase) {
+    if (!drop) return;
+    const sourceY = typeof drop.userData.sourceY === 'number' ? drop.userData.sourceY : 7.2;
+    const landY = typeof drop.userData.landY === 'number' ? drop.userData.landY : 2.45;
+    const originA = typeof drop.userData.originA === 'number' ? drop.userData.originA : (Math.random() * Math.PI * 2);
+    const originR = typeof drop.userData.originR === 'number' ? drop.userData.originR : (0.12 + Math.random() * 0.3);
+    const startX = Math.cos(originA) * originR;
+    const startZ = Math.sin(originA) * originR;
+    const lateralA = originA + (Math.random() - 0.5) * 0.75;
+    const lateralSpeed = 0.35 + Math.random() * 0.8;
+    const vy = 4.4 + Math.random() * 2.2;
+    const gravity = 8.7;
+
+    drop.userData.startX = startX;
+    drop.userData.startZ = startZ;
+    drop.userData.vx = Math.cos(lateralA) * lateralSpeed;
+    drop.userData.vz = Math.sin(lateralA) * lateralSpeed;
+    drop.userData.vy = vy;
+    drop.userData.g = gravity;
+    drop.userData.t = randomPhase ? (Math.random() * 0.75) : 0;
+
+    const t = drop.userData.t;
+    drop.position.x = startX + drop.userData.vx * t;
+    drop.position.z = startZ + drop.userData.vz * t;
+    drop.position.y = sourceY + vy * t - 0.5 * gravity * t * t;
+    if (drop.position.y < landY) drop.position.y = sourceY;
   }
 
   function teleport(zoneId, fromZoneId) {
@@ -6817,10 +7298,30 @@ import * as THREE from './vendor/three.module.js';
       for (let i = 0; i < pos.count; i++) {
         const x = pos.getX(i);
         const y = pos.getY(i);
-        pos.setZ(i, Math.sin(x * 0.12 + worldTime * 2.0) * 0.22 + Math.cos(y * 0.11 + worldTime * 1.6) * 0.18);
+        const r = Math.sqrt(x * x + y * y);
+        const edgeFactor = Math.max(0, Math.min(1, (r - 39) / 4));
+        const directional = Math.sin(x * 0.085 + worldTime * 0.42) * 0.007 + Math.cos(y * 0.078 + worldTime * 0.35) * 0.006;
+        const radial = Math.sin(r * 0.22 - worldTime * 0.46) * 0.003;
+        pos.setZ(i, (directional + radial) * edgeFactor);
       }
       pos.needsUpdate = true;
       waterMesh.geometry.computeVertexNormals();
+      if (waterMesh.material) {
+        waterMesh.material.emissiveIntensity = 0.12 + Math.sin(worldTime * 0.25) * 0.004;
+      }
+    }
+
+    for (const layer of fountainBasinLayers) {
+      if (!layer || !layer.material) continue;
+      const speed = layer.userData.rotSpeed || 0;
+      layer.rotation.z += speed * dt;
+      const phase = layer.userData.phase || 0;
+      const opacityBase = layer.userData.opacityBase || 0.2;
+      const opacityAmp = layer.userData.opacityAmp || 0.08;
+      layer.material.opacity = Math.max(0.04, opacityBase + Math.sin(worldTime * 2.3 + phase) * opacityAmp);
+      const scaleAmp = layer.userData.scaleAmp || 0.01;
+      const pulse = 1 + Math.sin(worldTime * 1.7 + phase) * scaleAmp;
+      layer.scale.set(pulse, pulse, pulse);
     }
 
     if (sidePondMesh) {
@@ -6828,7 +7329,7 @@ import * as THREE from './vendor/three.module.js';
       for (let i = 0; i < p.count; i++) {
         const x = p.getX(i);
         const y = p.getY(i);
-        p.setZ(i, Math.sin((x + y) * 0.2 + worldTime * 2.8) * 0.1);
+        p.setZ(i, Math.sin((x + y) * 0.14 + worldTime * 1.6) * 0.03);
       }
       p.needsUpdate = true;
       sidePondMesh.geometry.computeVertexNormals();
@@ -6859,18 +7360,71 @@ import * as THREE from './vendor/three.module.js';
     }
 
     if (fountainWater) {
-      fountainWater.scale.x = 1 + Math.sin(worldTime * 2) * 0.04;
-      fountainWater.scale.y = 1 + Math.cos(worldTime * 2.2) * 0.04;
+      fountainWater.scale.x = 1 + Math.sin(worldTime * 1.25) * 0.012;
+      fountainWater.scale.y = 1 + Math.cos(worldTime * 1.35) * 0.012;
+      if (fountainWater.material) {
+        fountainWater.material.emissiveIntensity = 0.2 + Math.sin(worldTime * 1.4) * 0.015;
+      }
     }
 
     for (const d of fountainDrops) {
-      d.position.y += d.userData.v;
-      d.position.x += Math.sin(worldTime * 2.1 + d.userData.ox * 4.2) * 0.004;
-      d.position.z += Math.cos(worldTime * 1.8 + d.userData.oz * 4.2) * 0.004;
-      if (d.position.y > 7.8) {
-        d.position.y = 4.95;
-        d.position.x = d.userData.ox + (Math.random() - 0.5) * 0.1;
-        d.position.z = d.userData.oz + (Math.random() - 0.5) * 0.1;
+      d.userData.t = (d.userData.t || 0) + dt * 1.25;
+      const t = d.userData.t;
+      const startX = typeof d.userData.startX === 'number' ? d.userData.startX : 0;
+      const startZ = typeof d.userData.startZ === 'number' ? d.userData.startZ : 0;
+      const vx = typeof d.userData.vx === 'number' ? d.userData.vx : 0;
+      const vz = typeof d.userData.vz === 'number' ? d.userData.vz : 0;
+      const sourceY = typeof d.userData.sourceY === 'number' ? d.userData.sourceY : 7.2;
+      const vy = typeof d.userData.vy === 'number' ? d.userData.vy : 4.8;
+      const g = typeof d.userData.g === 'number' ? d.userData.g : 8.7;
+      const landY = typeof d.userData.landY === 'number' ? d.userData.landY : 2.45;
+
+      d.position.x = startX + vx * t;
+      d.position.z = startZ + vz * t;
+      d.position.y = sourceY + vy * t - 0.5 * g * t * t;
+
+      if (d.position.y <= landY && t > 0.35) {
+        resetFountainDrop(d, false);
+      }
+    }
+
+    for (const jet of fountainArcDrops) {
+      const speed = jet.userData.speed || 1;
+      jet.userData.phase = (jet.userData.phase || 0) + dt * speed;
+      if (jet.userData.phase >= 1) {
+        jet.userData.phase -= 1;
+        jet.userData.orbit = 3.2 + Math.random() * 3.8;
+        jet.userData.h = 0.95 + Math.random() * 0.55;
+      }
+      const t = jet.userData.phase;
+      const a = (jet.userData.baseAngle || 0) + Math.sin(worldTime * 0.35 + (jet.userData.baseAngle || 0) * 1.3) * 0.05;
+      const startR = 0.55;
+      const endR = jet.userData.orbit || 4;
+      const r = startR + (endR - startR) * t;
+      jet.position.x = Math.cos(a) * r;
+      jet.position.z = Math.sin(a) * r;
+      jet.position.y = 4.95 - 4.72 * t + Math.sin(Math.PI * t) * (jet.userData.h || 1.1);
+      if (jet.material) {
+        jet.material.emissiveIntensity = 0.18 + Math.sin(worldTime * 5 + a * 2) * 0.06;
+      }
+    }
+
+    for (const stream of fountainPourStreams) {
+      if (!stream || !stream.curve) continue;
+      stream.phase = (stream.phase || 0) + dt * (stream.speed || 1.2);
+      if (stream.mesh && stream.mesh.material) {
+        stream.mesh.material.opacity = 0.72 + Math.sin(worldTime * 5.2 + stream.phase * 2.0) * 0.08;
+        stream.mesh.material.emissiveIntensity = 0.3 + Math.sin(worldTime * 4.3 + stream.phase * 1.7) * 0.06;
+      }
+      const drops = Array.isArray(stream.drops) ? stream.drops : [];
+      for (const drop of drops) {
+        if (!drop) continue;
+        const offset = typeof drop.userData.offset === 'number' ? drop.userData.offset : 0;
+        const speed = typeof drop.userData.speed === 'number' ? drop.userData.speed : 1.5;
+        drop.userData.phase = (drop.userData.phase || 0) + dt * speed;
+        const t = (drop.userData.phase + offset) % 1;
+        const p = stream.curve.getPointAt(t);
+        drop.position.copy(p);
       }
     }
 

@@ -415,16 +415,98 @@ a {
   flex-wrap: wrap;
 }
 
+.chess-piece-bank {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(40px, 1fr));
+  gap: 0.4rem;
+}
+
+.chess-piece-bank-item {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: linear-gradient(180deg, #efe5cf, #d7c39f);
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  padding: 0;
+  user-select: none;
+  -webkit-user-drag: element;
+}
+
+.chess-piece-bank-item:hover {
+  background: linear-gradient(180deg, #f6ecd8, #dfcbab);
+}
+
+.chess-piece-bank-item:active {
+  cursor: grabbing;
+}
+
+.chess-piece-bank-item .chess-piece {
+  font-size: 1.7rem;
+}
+
+.chess-setup-trash {
+  width: fit-content;
+  min-width: 170px;
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid rgba(255, 120, 140, 0.86);
+  border-radius: 10px;
+  background: rgba(120, 20, 32, 0.45);
+  color: #ffd8df;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.chess-setup-trash.drag-over {
+  background: rgba(160, 30, 46, 0.5);
+  border-color: rgba(255, 150, 164, 0.95);
+}
+
+.chess-setup-drag-ghost {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 9999;
+  font-family: "Segoe UI Symbol", "Arial Unicode MS", serif;
+  font-size: 2rem;
+  line-height: 1;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.42);
+}
+
+.chess-setup-drag-ghost.white {
+  color: #ffffff;
+  -webkit-text-stroke: 0.55px #000000;
+}
+
+.chess-setup-drag-ghost.black {
+  color: #131313;
+}
+
 .chess-controls {
   display: flex;
   gap: 0.55rem;
 }
 
+.chess-board-shell {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
 .chess-board {
-  width: min(100%, 560px);
-  aspect-ratio: 1 / 1;
+  --chess-cell-size: 70px;
+  width: calc(var(--chess-cell-size) * 8);
+  height: calc(var(--chess-cell-size) * 8);
+  max-width: 100%;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(8, var(--chess-cell-size));
+  grid-template-rows: repeat(8, var(--chess-cell-size));
+  margin: 0 auto;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -436,9 +518,22 @@ a {
   position: relative;
   display: grid;
   place-items: center;
+  width: var(--chess-cell-size);
+  height: var(--chess-cell-size);
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
   padding: 0;
   border-radius: 0;
   cursor: pointer;
+}
+
+.chess-board.setup-active .chess-square {
+  cursor: grab;
+}
+
+.chess-board.setup-active .chess-square:active {
+  cursor: grabbing;
 }
 
 .chess-square.light {
@@ -461,6 +556,43 @@ a {
   background: rgba(66, 232, 180, 0.4);
 }
 
+.chess-endgame-modal {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(5, 10, 20, 0.74);
+  backdrop-filter: blur(4px);
+  z-index: 5;
+}
+
+.chess-endgame-modal[hidden] {
+  display: none;
+}
+
+.chess-endgame-panel {
+  width: min(100%, 320px);
+  padding: 1.2rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(11, 18, 34, 0.96), rgba(8, 13, 24, 0.94));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.chess-endgame-message {
+  margin: 0 0 0.9rem;
+  color: #f1f5ff;
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.chess-endgame-panel button {
+  min-width: 140px;
+}
+
 .chess-piece {
   position: relative;
   z-index: 1;
@@ -469,6 +601,11 @@ a {
   font-family: "Segoe UI Symbol", "Arial Unicode MS", serif;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   pointer-events: none;
+}
+
+.chess-board.setup-active .chess-piece {
+  pointer-events: auto;
+  cursor: grab;
 }
 
 .chess-piece.white {

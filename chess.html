@@ -107,7 +107,7 @@
             <div class="chess-mode-panel">
               <label for="chess-mode-select">Mode</label>
               <select id="chess-mode-select">
-                <option value="local">Local 2 Player</option>
+                <option value="local">Play by Yourself</option>
                 <option value="computer">Vs Computer</option>
                 <option value="live">Live Multiplayer</option>
                 <option value="puzzle">Chess Puzzles</option>
@@ -119,24 +119,67 @@
                 <option value="hard">Hard</option>
               </select>
               <div id="chess-link-controls" class="chess-link-actions">
+                <select id="chess-live-color-select" aria-label="Your live color">
+                  <option value="w" selected>Play as White</option>
+                  <option value="b">Play as Black</option>
+                </select>
                 <button id="chess-create-link-btn" class="ghost-btn" type="button">Create Invite Link</button>
                 <button id="chess-copy-link-btn" class="ghost-btn" type="button">Copy Link</button>
               </div>
               <input id="chess-link-input" type="text" readonly placeholder="Live room link appears here" />
+              <div id="chess-setup-controls" class="chess-link-actions">
+                <button id="chess-setup-normal-btn" class="ghost-btn" type="button">Normal Set up Mode</button>
+                <button id="chess-setup-modify-btn" class="ghost-btn" type="button">Modify Set up Mode</button>
+                <div id="chess-setup-piece-bank" class="chess-piece-bank hidden" aria-label="Setup pieces">
+                  <button class="chess-piece-bank-item" data-piece="wK" type="button" draggable="true"><span class="chess-piece white">♚</span></button>
+                  <button class="chess-piece-bank-item" data-piece="wQ" type="button" draggable="true"><span class="chess-piece white">♛</span></button>
+                  <button class="chess-piece-bank-item" data-piece="wR" type="button" draggable="true"><span class="chess-piece white">♜</span></button>
+                  <button class="chess-piece-bank-item" data-piece="wB" type="button" draggable="true"><span class="chess-piece white">♝</span></button>
+                  <button class="chess-piece-bank-item" data-piece="wN" type="button" draggable="true"><span class="chess-piece white">♞</span></button>
+                  <button class="chess-piece-bank-item" data-piece="wP" type="button" draggable="true"><span class="chess-piece white">♟</span></button>
+                  <button class="chess-piece-bank-item" data-piece="bK" type="button" draggable="true"><span class="chess-piece black">♚</span></button>
+                  <button class="chess-piece-bank-item" data-piece="bQ" type="button" draggable="true"><span class="chess-piece black">♛</span></button>
+                  <button class="chess-piece-bank-item" data-piece="bR" type="button" draggable="true"><span class="chess-piece black">♜</span></button>
+                  <button class="chess-piece-bank-item" data-piece="bB" type="button" draggable="true"><span class="chess-piece black">♝</span></button>
+                  <button class="chess-piece-bank-item" data-piece="bN" type="button" draggable="true"><span class="chess-piece black">♞</span></button>
+                  <button class="chess-piece-bank-item" data-piece="bP" type="button" draggable="true"><span class="chess-piece black">♟</span></button>
+                </div>
+                <div id="chess-setup-trash" class="chess-setup-trash hidden" aria-label="Delete Piece drop zone">🗑 Delete Piece</div>
+              </div>
               <div id="chess-puzzle-controls" class="chess-link-actions">
                 <button id="chess-puzzle-next-btn" class="ghost-btn" type="button">Next Puzzle</button>
                 <button id="chess-puzzle-answer-btn" class="ghost-btn" type="button">Show Answer</button>
+                <button id="chess-puzzle-shuffle-btn" class="ghost-btn" type="button">Shuffle: Off</button>
               </div>
             </div>
             <div class="chess-hud">
               <p id="chess-turn" class="meta-text">Turn: White</p>
               <div class="chess-controls">
-                <button id="chess-new-btn" type="button">New Game</button>
+                <button id="chess-new-btn" type="button">Reset Board</button>
+                <button id="chess-setup-clear-btn" class="ghost-btn hidden" type="button">Clear board</button>
+                <button id="chess-setup-start-btn" class="ghost-btn hidden" type="button">Start</button>
                 <button id="chess-flip-btn" class="ghost-btn" type="button">Flip Board</button>
               </div>
             </div>
-            <div id="chess-board" class="chess-board" aria-label="Chess board"></div>
+            <div class="chess-board-shell">
+              <div id="chess-board" class="chess-board" aria-label="Chess board"></div>
+              <div id="chess-endgame-modal" class="chess-endgame-modal" hidden>
+                <div class="chess-endgame-panel">
+                  <p id="chess-endgame-message" class="chess-endgame-message">Checkmate! You've won.</p>
+                  <button id="chess-try-again-btn" type="button">Try again</button>
+                </div>
+              </div>
+            </div>
             <p id="chess-status" class="status-text">White to move.</p>
+            <div id="chess-live-chat" class="multiplayer-card hidden" aria-live="polite">
+              <h3>Room Chat Log</h3>
+              <p class="game-description">Chat with your live opponent in this room.</p>
+              <div id="chess-live-chat-log" class="mp-chat-log"></div>
+              <div class="mp-chat-actions">
+                <input id="chess-live-chat-input" type="text" maxlength="220" placeholder="Type a message" />
+                <button id="chess-live-chat-send" type="button">Send</button>
+              </div>
+            </div>
           </section>
         </main>
 

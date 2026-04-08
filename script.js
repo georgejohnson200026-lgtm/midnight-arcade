@@ -350,6 +350,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 // ── Chess ──────────────────────────────────────────────────────────────
 (function initChessGame() {
   const boardEl = document.getElementById("chess-board");
+  const boardSizerEl = boardEl ? (boardEl.parentElement || boardEl) : null;
   const statusEl = document.getElementById("chess-status");
   const turnEl = document.getElementById("chess-turn");
   const newBtn = document.getElementById("chess-new-btn");
@@ -359,11 +360,28 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   const aiLevelLabel = document.querySelector('label[for="chess-ai-level"]');
   const createLinkBtn = document.getElementById("chess-create-link-btn");
   const copyLinkBtn = document.getElementById("chess-copy-link-btn");
+  const liveColorSelect = document.getElementById("chess-live-color-select");
   const linkInput = document.getElementById("chess-link-input");
   const linkControls = document.getElementById("chess-link-controls");
+  const setupControls = document.getElementById("chess-setup-controls");
+  const setupNormalBtn = document.getElementById("chess-setup-normal-btn");
+  const setupModifyBtn = document.getElementById("chess-setup-modify-btn");
+  const setupClearBtn = document.getElementById("chess-setup-clear-btn");
+  const setupStartBtn = document.getElementById("chess-setup-start-btn");
+  const setupPieceBank = document.getElementById("chess-setup-piece-bank");
+  const setupTrash = document.getElementById("chess-setup-trash");
+  const setupPieceButtons = setupPieceBank ? Array.from(setupPieceBank.querySelectorAll("[data-piece]")) : [];
   const puzzleControls = document.getElementById("chess-puzzle-controls");
   const puzzleNextBtn = document.getElementById("chess-puzzle-next-btn");
   const puzzleAnswerBtn = document.getElementById("chess-puzzle-answer-btn");
+  const puzzleShuffleBtn = document.getElementById("chess-puzzle-shuffle-btn");
+  const liveChatPanel = document.getElementById("chess-live-chat");
+  const liveChatLogEl = document.getElementById("chess-live-chat-log");
+  const liveChatInput = document.getElementById("chess-live-chat-input");
+  const liveChatSendBtn = document.getElementById("chess-live-chat-send");
+  const endgameModalEl = document.getElementById("chess-endgame-modal");
+  const endgameMessageEl = document.getElementById("chess-endgame-message");
+  const tryAgainBtn = document.getElementById("chess-try-again-btn");
 
   if (!boardEl || !statusEl || !turnEl || !newBtn || !flipBtn || !modeSelect || !aiLevelSelect) {
     return;
@@ -435,6 +453,618 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       fen: "4k3/8/8/8/4q3/8/4Q3/4K3 w - - 0 1",
       solution: "e2e4",
     },
+
+    // --- 10 MATE IN ONE ---
+    {
+      title: "Mate in One #1",
+      prompt: "White to move. Checkmate in one.",
+      fen: "7k/8/5KQ1/8/8/8/8/8 w - - 0 1",
+      solution: "g6g7",
+    },
+    {
+      title: "Mate in One #2",
+      prompt: "White to move. Sequence: Rd8+, ...Ne8, Rxe8#.",
+      fen: "6k1/5ppp/5n2/6q1/8/8/5PPP/3R2K1 w - - 0 1",
+      solution: ["d1d8", "f6e8", "d8e8"],
+    },
+    {
+      title: "Mate in One #3",
+      prompt: "White to move. Sequence: Rh8+, ...Ng8, Rxg8#.",
+      fen: "3qk3/8/4Kn2/8/8/8/8/7R w - - 0 1",
+      solution: ["h1h8", "f6g8", "h8g8"],
+    },
+    {
+      title: "Mate in One #4",
+      prompt: "White to move. Checkmate in one.",
+      fen: "4k3/3Q4/4K3/8/8/8/8/8 w - - 0 1",
+      solution: "d7e7",
+    },
+    {
+      title: "Mate in One #5",
+      prompt: "White to move. Queen delivers checkmate.",
+      fen: "6k1/6pp/8/6Q1/8/8/8/6K1 w - - 0 1",
+      solution: "g5g7",
+    },
+    {
+      title: "Mate in One #6",
+      prompt: "White to move. Checkmate with the rook.",
+      fen: "6k1/8/8/8/8/8/8/R5K1 w - - 0 1",
+      solution: "a1a8",
+    },
+    {
+      title: "Mate in One #7",
+      prompt: "White to move. Checkmate in one.",
+      fen: "k7/8/1K6/8/8/8/8/7R w - - 0 1",
+      solution: "h1h8",
+    },
+    {
+      title: "Mate in One #8",
+      prompt: "White to move. Finish Black off.",
+      fen: "6k1/5Q1p/6p1/8/8/8/8/6K1 w - - 0 1",
+      solution: "f7f8",
+    },
+    {
+      title: "Mate in One #9",
+      prompt: "White to move. Deliver checkmate.",
+      fen: "3k4/8/3K4/8/8/8/8/3R4 w - - 0 1",
+      solution: "d1d8",
+    },
+    {
+      title: "Mate in One #10",
+      prompt: "White to move. Smothered-style mate.",
+      fen: "6k1/6pp/7K/8/8/8/8/6Q1 w - - 0 1",
+      solution: "g1g8",
+    },
+
+    // --- 35 MATE IN TWO ---
+    {
+      title: "Mate in Two #1",
+      prompt: "White to move. Checkmate in two moves.",
+      fen: "r1bqkbnr/ppp2ppp/2np4/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
+      solution: ["d1f3", "d8f6", "f3f7"],
+    },
+    {
+      title: "Mate in Two #2",
+      prompt: "White to move. Force checkmate in two.",
+      fen: "r2qkb1r/ppp2ppp/2n5/3pp1B1/2B1P1b1/2N5/PPPP1PPP/R2QK2R w KQkq - 0 1",
+      solution: ["d1f3", "d8d6", "f3f7"],
+    },
+    {
+      title: "Mate in Two #3",
+      prompt: "White to move. Find the two-move mate.",
+      fen: "5rk1/pppp1ppp/4b3/8/8/4B3/PPPP1PPP/4RRK1 w - - 0 1",
+      solution: ["e1e8", "f8e8", "f1e8"],
+    },
+    {
+      title: "Mate in Two #4",
+      prompt: "White to move. Deliver checkmate in two.",
+      fen: "6k1/5ppp/8/8/6Q1/8/5PPP/6K1 w - - 0 1",
+      solution: ["g4g7", "g8h8", "g7h7"],
+    },
+    {
+      title: "Mate in Two #5",
+      prompt: "White to move. Two-move checkmate.",
+      fen: "5k2/4Rppp/8/8/8/8/5PPP/5K2 w - - 0 1",
+      solution: ["e7e8", "f8f7", "e8f8"],
+    },
+    {
+      title: "Mate in Two #6",
+      prompt: "White to move. Queen and rook cooperate.",
+      fen: "3k4/3R4/3K4/8/8/8/8/7Q w - - 0 1",
+      solution: ["h1d1", "d8c8", "d7d8"],
+    },
+    {
+      title: "Mate in Two #7",
+      prompt: "White to move. Force mate in two.",
+      fen: "k7/8/1K6/8/8/1R6/8/8 w - - 0 1",
+      solution: ["b3b7", "a8a7", "b7a7"],
+    },
+    {
+      title: "Mate in Two #8",
+      prompt: "White to move. Two-move mate.",
+      fen: "5k2/8/4Q3/8/8/8/8/4K3 w - - 0 1",
+      solution: ["e6e8", "f8g7", "e8f7"],
+    },
+    {
+      title: "Mate in Two #9",
+      prompt: "White to move. Find mate in two.",
+      fen: "5k2/5p1p/5K2/8/8/8/8/4R3 w - - 0 1",
+      solution: ["e1e8", "f8g7", "e8e7"],
+    },
+    {
+      title: "Mate in Two #10",
+      prompt: "White to move. Zugzwang leads to mate.",
+      fen: "8/8/8/8/8/k1K5/8/R7 w - - 0 1",
+      solution: ["a1a2", "a3b3", "a2a3"],
+    },
+    {
+      title: "Mate in Two #11",
+      prompt: "White to move. Two-move checkmate.",
+      fen: "5k2/4Q3/8/8/8/8/8/4K3 w - - 0 1",
+      solution: ["e7e8", "f8g7", "e8f8"],
+    },
+    {
+      title: "Mate in Two #12",
+      prompt: "White to move. Force checkmate.",
+      fen: "k7/2R5/1K6/8/8/8/8/8 w - - 0 1",
+      solution: ["c7c8", "a8b8", "c8b8"],
+    },
+    {
+      title: "Mate in Two #13",
+      prompt: "White to move. Rook and queen attack.",
+      fen: "k7/8/K7/8/8/8/8/R7 w - - 0 1",
+      solution: ["a1a7", "a8b8", "a7b7"],
+    },
+    {
+      title: "Mate in Two #14",
+      prompt: "White to move. Two-move mate.",
+      fen: "8/8/8/8/8/1k6/8/RK6 w - - 0 1",
+      solution: ["a1a3", "b3c2", "a3a2"],
+    },
+    {
+      title: "Mate in Two #15",
+      prompt: "White to move. Deliver mate.",
+      fen: "5k2/8/5K2/4R3/8/8/8/8 w - - 0 1",
+      solution: ["e5e8", "f8g7", "e8e7"],
+    },
+    {
+      title: "Mate in Two #16",
+      prompt: "White to move. Close the net.",
+      fen: "8/8/8/k7/8/K7/1R6/8 w - - 0 1",
+      solution: ["b2b5", "a5a4", "b5a5"],
+    },
+    {
+      title: "Mate in Two #17",
+      prompt: "White to move. Force checkmate in two.",
+      fen: "8/8/8/8/k7/8/K7/2R5 w - - 0 1",
+      solution: ["c1c4", "a4a3", "c4a4"],
+    },
+    {
+      title: "Mate in Two #18",
+      prompt: "White to move. Queen delivers.",
+      fen: "4k3/4Q3/4K3/8/8/8/8/8 w - - 0 1",
+      solution: ["e7d8", "e8f7", "d8e8"],
+    },
+    {
+      title: "Mate in Two #19",
+      prompt: "White to move. Two-move finish.",
+      fen: "6k1/8/6K1/7R/8/8/8/8 w - - 0 1",
+      solution: ["h5h7", "g8f8", "h7h8"],
+    },
+    {
+      title: "Mate in Two #20",
+      prompt: "White to move. Rook covers, queen strikes.",
+      fen: "7k/7p/7K/8/8/8/8/7Q w - - 0 1",
+      solution: ["h1h7", "h8g8", "h7h8"],
+    },
+    {
+      title: "Mate in Two #21",
+      prompt: "White to move. Two-move checkmate.",
+      fen: "k1K5/8/1R6/8/8/8/8/8 w - - 0 1",
+      solution: ["b6b7", "a8a8", "b7a7"],
+    },
+    {
+      title: "Mate in Two #22",
+      prompt: "White to move. Box in the king.",
+      fen: "8/8/8/8/K7/8/k7/2R5 w - - 0 1",
+      solution: ["c1c2", "a2a3", "c2a2"],
+    },
+    {
+      title: "Mate in Two #23",
+      prompt: "White to move. Drive the king.",
+      fen: "8/8/8/8/8/k1K5/2R5/8 w - - 0 1",
+      solution: ["c2a2", "a3b3", "a2a3"],
+    },
+    {
+      title: "Mate in Two #24",
+      prompt: "White to move. Force mate in two.",
+      fen: "8/8/k7/K7/8/8/8/R7 w - - 0 1",
+      solution: ["a1a8", "a6b6", "a8a6"],
+    },
+    {
+      title: "Mate in Two #25",
+      prompt: "White to move. Checkmate in two.",
+      fen: "6k1/6p1/7p/8/8/8/6PP/5RK1 w - - 0 1",
+      solution: ["f1f8", "g8h7", "f8f7"],
+    },
+    {
+      title: "Mate in Two #26",
+      prompt: "White to move. Bishop aids the queen.",
+      fen: "5k2/8/5K2/8/5Q2/8/8/8 w - - 0 1",
+      solution: ["f4b8", "f8g7", "b8f4"],
+    },
+    {
+      title: "Mate in Two #27",
+      prompt: "White to move. Rook covers the file.",
+      fen: "6k1/5Rpp/8/8/8/8/8/6K1 w - - 0 1",
+      solution: ["f7f8", "g8h7", "f8f7"],
+    },
+    {
+      title: "Mate in Two #28",
+      prompt: "White to move. Cut off the king.",
+      fen: "8/8/8/8/k7/2K5/8/4R3 w - - 0 1",
+      solution: ["e1e4", "a4b4", "e4a4"],
+    },
+    {
+      title: "Mate in Two #29",
+      prompt: "White to move. Two-move forced mate.",
+      fen: "8/8/k1K5/8/R7/8/8/8 w - - 0 1",
+      solution: ["a4a8", "a6b6", "a8a6"],
+    },
+    {
+      title: "Mate in Two #30",
+      prompt: "White to move. Rooks coordinate for checkmate.",
+      fen: "8/8/8/8/8/8/k7/RKR5 w - - 0 1",
+      solution: ["a1a2", "a2b3", "c1a1"],
+    },
+    {
+      title: "Mate in Two #31",
+      prompt: "White to move. Force checkmate in two.",
+      fen: "8/8/8/8/8/K7/8/R2k4 w - - 0 1",
+      solution: ["a1a4", "d1e1", "a4a1"],
+    },
+    {
+      title: "Mate in Two #32",
+      prompt: "White to move. Two-move queen mate.",
+      fen: "4k3/8/4K3/8/8/8/8/4Q3 w - - 0 1",
+      solution: ["e1e7", "e8d8", "e7d7"],
+    },
+    {
+      title: "Mate in Two #33",
+      prompt: "White to move. Box in and mate.",
+      fen: "k7/8/K7/8/8/8/8/2R5 w - - 0 1",
+      solution: ["c1c8", "a8b8", "c8b8"],
+    },
+    {
+      title: "Mate in Two #34",
+      prompt: "White to move. Deliver checkmate in two.",
+      fen: "8/8/8/8/8/K7/k7/1R6 w - - 0 1",
+      solution: ["b1b2", "a2a1", "b2a2"],
+    },
+    {
+      title: "Mate in Two #35",
+      prompt: "White to move. Two-move finish.",
+      fen: "8/8/8/8/8/1K6/k7/1R6 w - - 0 1",
+      solution: ["b1a1", "a2b2", "a1a2"],
+    },
+
+    // --- 25 MATE IN THREE ---
+    {
+      title: "Mate in Three #1",
+      prompt: "White to move. Checkmate in three moves.",
+      fen: "k7/8/2K5/8/R7/8/8/8 w - - 0 1",
+      solution: ["a4a5", "a8b8", "a5b5", "b8c8", "b5b8"],
+    },
+    {
+      title: "Mate in Three #2",
+      prompt: "White to move. Force mate in three.",
+      fen: "8/8/k7/8/8/K7/8/3R4 w - - 0 1",
+      solution: ["d1d6", "a6b5", "d6b6", "b5a5", "b6a6"],
+    },
+    {
+      title: "Mate in Three #3",
+      prompt: "White to move. Three-move checkmate.",
+      fen: "8/8/8/8/k7/K7/8/R7 w - - 0 1",
+      solution: ["a1a4", "a4b3", "a4a3", "b3c4", "a3a4"],
+    },
+    {
+      title: "Mate in Three #4",
+      prompt: "White to move. Deliver mate in three.",
+      fen: "k7/8/K7/2R5/8/8/8/8 w - - 0 1",
+      solution: ["c5c8", "a8b8", "c8b8", "b8a7", "c5c7"],
+    },
+    {
+      title: "Mate in Three #5",
+      prompt: "White to move. Queen and rook finish in three.",
+      fen: "5k2/8/5K2/8/8/8/8/3RQ3 w - - 0 1",
+      solution: ["e1e5", "f8g8", "e5e8", "g8h7", "d1d7"],
+    },
+    {
+      title: "Mate in Three #6",
+      prompt: "White to move. Three-move forced mate.",
+      fen: "k7/8/1K6/8/8/8/8/1R6 w - - 0 1",
+      solution: ["b1b7", "a8a8", "b7a7", "a8b8", "a7a8"],
+    },
+    {
+      title: "Mate in Three #7",
+      prompt: "White to move. Three-move checkmate.",
+      fen: "8/8/8/8/8/k1K5/8/2R5 w - - 0 1",
+      solution: ["c1a1", "a3b3", "a1b1", "b3a3", "b1a1"],
+    },
+    {
+      title: "Mate in Three #8",
+      prompt: "White to move. Force mate in three moves.",
+      fen: "8/8/k7/K7/2R5/8/8/8 w - - 0 1",
+      solution: ["c4c6", "a6b5", "c6b6", "b5a5", "b6a6"],
+    },
+    {
+      title: "Mate in Three #9",
+      prompt: "White to move. Methodical three-move mate.",
+      fen: "8/8/8/8/K7/8/k7/3R4 w - - 0 1",
+      solution: ["d1d2", "a2a1", "a4a3", "a1b1", "d2d1"],
+    },
+    {
+      title: "Mate in Three #10",
+      prompt: "White to move. Three-move victory.",
+      fen: "6k1/8/6K1/8/8/8/8/R7 w - - 0 1",
+      solution: ["a1a7", "g8h8", "a7h7", "h8g8", "h7h8"],
+    },
+    {
+      title: "Mate in Three #11",
+      prompt: "White to move. Three-move checkmating sequence.",
+      fen: "k7/8/2K5/8/8/8/R7/8 w - - 0 1",
+      solution: ["a2a7", "a8b8", "a7b7", "b8a8", "b7a7"],
+    },
+    {
+      title: "Mate in Three #12",
+      prompt: "White to move. Cut off and mate.",
+      fen: "8/8/8/k7/K7/8/8/2R5 w - - 0 1",
+      solution: ["c1c5", "a5b4", "c5b5", "b4a4", "b5a5"],
+    },
+    {
+      title: "Mate in Three #13",
+      prompt: "White to move. Rook zigzag mate.",
+      fen: "8/8/k7/8/K7/8/8/R7 w - - 0 1",
+      solution: ["a1a6", "a6b5", "a6b6", "b5a5", "b6a6"],
+    },
+    {
+      title: "Mate in Three #14",
+      prompt: "White to move. Three-move finisher.",
+      fen: "k7/8/K7/R7/8/8/8/8 w - - 0 1",
+      solution: ["a5a6", "a8b8", "a6b6", "b8c8", "b6b8"],
+    },
+    {
+      title: "Mate in Three #15",
+      prompt: "White to move. Queen restriction mate in three.",
+      fen: "8/8/8/k7/8/K7/8/4Q3 w - - 0 1",
+      solution: ["e1e5", "a5a4", "e5b5", "a4a3", "b5a5"],
+    },
+    {
+      title: "Mate in Three #16",
+      prompt: "White to move. Three-move checkmate.",
+      fen: "8/8/8/k7/8/1K6/8/R7 w - - 0 1",
+      solution: ["a1a5", "a5b4", "a5b5", "b4a4", "b5a5"],
+    },
+    {
+      title: "Mate in Three #17",
+      prompt: "White to move. Three-move sequence.",
+      fen: "8/8/8/8/k7/2K5/8/4R3 w - - 0 1",
+      solution: ["e1e4", "a4b4", "e4a4", "b4c3", "a4a3"],
+    },
+    {
+      title: "Mate in Three #18",
+      prompt: "White to move. Force checkmate in three.",
+      fen: "8/8/K7/8/k7/8/8/4R3 w - - 0 1",
+      solution: ["e1e4", "a4b3", "e4b4", "b3a3", "b4a4"],
+    },
+    {
+      title: "Mate in Three #19",
+      prompt: "White to move. Three-move rook mate.",
+      fen: "k7/8/1K6/8/8/8/4R3/8 w - - 0 1",
+      solution: ["e2e8", "a8b8", "e8b8", "b8a7", "b8a8"],
+    },
+    {
+      title: "Mate in Three #20",
+      prompt: "White to move. Dominate with rook in three.",
+      fen: "8/8/8/8/K7/2k5/8/1R6 w - - 0 1",
+      solution: ["b1b3", "c3d4", "b3b4", "d4c3", "b4a4"],
+    },
+    {
+      title: "Mate in Three #21",
+      prompt: "White to move. Chase and checkmate.",
+      fen: "8/3k4/8/3K4/8/8/8/3R4 w - - 0 1",
+      solution: ["d1d8", "d7e7", "d8e8", "e7f6", "e8e6"],
+    },
+    {
+      title: "Mate in Three #22",
+      prompt: "White to move. Restrict and finish.",
+      fen: "8/8/8/8/k7/8/K7/2R5 w - - 0 1",
+      solution: ["c1c4", "a4a3", "c4c3", "a3a2", "c3a3"],
+    },
+    {
+      title: "Mate in Three #23",
+      prompt: "White to move. Force mate in three.",
+      fen: "8/8/8/8/3k4/3K4/8/3R4 w - - 0 1",
+      solution: ["d1h1", "d4e4", "h1h4", "e4f5", "h4h5"],
+    },
+    {
+      title: "Mate in Three #24",
+      prompt: "White to move. Three-move forced checkmate.",
+      fen: "8/8/8/1k6/K7/8/8/R7 w - - 0 1",
+      solution: ["a1a5", "b5c6", "a5b5", "c6d6", "b5b6"],
+    },
+    {
+      title: "Mate in Three #25",
+      prompt: "White to move. Queen cuts off, then mates.",
+      fen: "8/8/k7/8/K7/8/8/3Q4 w - - 0 1",
+      solution: ["d1d6", "a6b5", "d6b6", "b5a5", "b6a6"],
+    },
+
+    // --- 10 MATE IN FOUR ---
+    {
+      title: "Mate in Four #1",
+      prompt: "White to move. Force checkmate in four moves.",
+      fen: "8/8/8/K7/8/k7/8/R7 w - - 0 1",
+      solution: ["a1h1", "a3b2", "h1h3", "b2a2", "a5b4", "a2b2", "h3h2"],
+    },
+    {
+      title: "Mate in Four #2",
+      prompt: "White to move. Four-move checkmate.",
+      fen: "8/8/8/8/k7/K7/8/R7 w - - 0 1",
+      solution: ["a1h1", "a4b3", "h1h4", "b3a3", "a3b4", "a3a2", "h4a4"],
+    },
+    {
+      title: "Mate in Four #3",
+      prompt: "White to move. Deliver mate in four.",
+      fen: "8/8/8/8/8/k1K5/8/4R3 w - - 0 1",
+      solution: ["e1e3", "a3b2", "e3b3", "b2a2", "c3b2", "a2a1", "b3a3"],
+    },
+    {
+      title: "Mate in Four #4",
+      prompt: "White to move. Four-move forced mate.",
+      fen: "8/8/8/k7/8/K7/8/4R3 w - - 0 1",
+      solution: ["e1e5", "a5b4", "e5b5", "b4a4", "a4b4", "a4a3", "b5a5"],
+    },
+    {
+      title: "Mate in Four #5",
+      prompt: "White to move. Rook and king — mate in four.",
+      fen: "8/8/k7/K7/8/8/8/4R3 w - - 0 1",
+      solution: ["e1e6", "a6b5", "e6b6", "b5a5", "a5b5", "a5a4", "b6a6"],
+    },
+    {
+      title: "Mate in Four #6",
+      prompt: "White to move. Four-move end game.",
+      fen: "8/8/8/k7/K7/8/8/R7 w - - 0 1",
+      solution: ["a1a5", "a5b4", "a5b5", "b4a4", "b5a5", "a4b4", "a5a4"],
+    },
+    {
+      title: "Mate in Four #7",
+      prompt: "White to move. Force checkmate in four.",
+      fen: "8/8/8/8/K7/k7/8/4R3 w - - 0 1",
+      solution: ["e1e3", "a3b2", "e3b3", "b2a2", "a4b2", "a2a1", "b3a3"],
+    },
+    {
+      title: "Mate in Four #8",
+      prompt: "White to move. Four moves to mate.",
+      fen: "3k4/8/3K4/8/R7/8/8/8 w - - 0 1",
+      solution: ["a4a8", "d8c7", "a8c8", "c7b7", "d6d7", "b7b6", "c8b8"],
+    },
+    {
+      title: "Mate in Four #9",
+      prompt: "White to move. Rook and king cover escape.",
+      fen: "k7/8/1K6/8/1R6/8/8/8 w - - 0 1",
+      solution: ["b4b8", "a8a7", "b8b7", "a7a6", "b6b7", "a6a5", "b7a7"],
+    },
+    {
+      title: "Mate in Four #10",
+      prompt: "White to move. End it in four.",
+      fen: "8/8/1k6/K7/8/8/8/R7 w - - 0 1",
+      solution: ["a1a6", "b6c5", "a6c6", "c5b5", "a5b5", "c5b4", "c6c5"],
+    },
+
+    // --- 10 WINNING POSITION IN ONE MOVE ---
+    {
+      title: "Win the Exchange",
+      prompt: "White to move. Win material — fork the rooks.",
+      fen: "r3k3/8/8/8/8/8/8/r1N1K3 w - - 0 1",
+      solution: "c1b3",
+    },
+    {
+      title: "Fork the Royals",
+      prompt: "White to move. Fork king and queen with the knight.",
+      fen: "4k3/8/8/8/8/8/4q3/4K1N1 w - - 0 1",
+      solution: "g1f3",
+    },
+    {
+      title: "Pin and Win",
+      prompt: "White to move. Pin the queen against the king.",
+      fen: "4k3/4q3/8/8/8/8/4R3/4K3 w - - 0 1",
+      solution: "e2e7",
+    },
+    {
+      title: "Skewer the King",
+      prompt: "White to move. Skewer — win the queen.",
+      fen: "4k3/8/8/8/8/8/8/2B1K3 w - - 0 1",
+      solution: "c1h6",
+    },
+    {
+      title: "Queen Trap",
+      prompt: "White to move. Trap the black queen.",
+      fen: "3k4/2q5/3P4/4N3/8/8/8/3K4 w - - 0 1",
+      solution: "e5d3",
+    },
+    {
+      title: "Winning Fork #1",
+      prompt: "White to move. Fork king and rook with the knight.",
+      fen: "r3k3/8/8/8/8/8/4N3/4K3 w - - 0 1",
+      solution: "e2c3",
+    },
+    {
+      title: "Tactical Pin",
+      prompt: "White to move. Pin the bishop to win the rook.",
+      fen: "r1bk4/8/8/8/8/8/8/3BK3 w - - 0 1",
+      solution: "d1a4",
+    },
+    {
+      title: "Rook Skewer",
+      prompt: "White to move. Skewer king and rook along the file.",
+      fen: "4k3/8/4r3/8/8/8/8/4RK2 w - - 0 1",
+      solution: "e1e8",
+    },
+    {
+      title: "Double Attack",
+      prompt: "White to move. Attack king and undefended queen.",
+      fen: "4k3/8/4q3/8/3N4/8/8/4K3 w - - 0 1",
+      solution: "d4f5",
+    },
+    {
+      title: "Discovered Attack",
+      prompt: "White to move. Discover an attack on the queen.",
+      fen: "2k5/8/8/2q5/3B4/2N5/8/2K5 w - - 0 1",
+      solution: "c3b5",
+    },
+
+    // --- 10 WINNING POSITION IN TWO MOVES ---
+    {
+      title: "Two-Move Fork",
+      prompt: "White to move. Win big material in two moves.",
+      fen: "r1b1k2r/pppp1ppp/5n2/4p1B1/3nP3/3P1N2/PPP2PPP/RN1QKB1R w KQkq - 0 1",
+      solution: ["f3e5", "d4e2", "d1h5"],
+    },
+    {
+      title: "Double Bishop Fork",
+      prompt: "White to move. Two moves to win the queen.",
+      fen: "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/8/PPPP1PPP/RNBQK1NR w KQkq - 0 1",
+      solution: ["d1h5", "g8f6", "h5f7"],
+    },
+    {
+      title: "Queen Skewer Combo",
+      prompt: "White to move. Two-move tactic wins the rook.",
+      fen: "r3k3/8/8/8/8/8/8/4KQ2 w - - 0 1",
+      solution: ["f1b5", "e8d8", "b5a6"],
+    },
+    {
+      title: "Two-Move Pin",
+      prompt: "White to move. Two moves win the queen.",
+      fen: "4k3/4q3/4n3/8/8/4B3/8/4K3 w - - 0 1",
+      solution: ["e3b6", "e7d6", "b6d8"],
+    },
+    {
+      title: "Knight Maneuver",
+      prompt: "White to move. Two-move knight fork wins material.",
+      fen: "r3k3/8/8/8/8/6N1/8/4K3 w - - 0 1",
+      solution: ["g3f5", "e8d8", "f5d6"],
+    },
+    {
+      title: "Rook Decoy",
+      prompt: "White to move. Two moves to fork king and rook.",
+      fen: "r3k3/8/4R3/8/8/8/8/4K3 w - - 0 1",
+      solution: ["e6e8", "e8f7", "e1d2"],
+    },
+    {
+      title: "Two-Move Material Grab",
+      prompt: "White to move. Win the rook in two moves.",
+      fen: "5rk1/5ppp/8/8/3B4/8/5PPP/5RK1 w - - 0 1",
+      solution: ["d4b6", "f8f6", "b6f6"],
+    },
+    {
+      title: "Clearance Combo",
+      prompt: "White to move. Clearance sacrifice wins the queen.",
+      fen: "4k3/3qb3/8/8/8/8/3PB3/4K3 w - - 0 1",
+      solution: ["e2b5", "d7b5", "d2d8"],
+    },
+    {
+      title: "Two-Move Bishop Combo",
+      prompt: "White to move. Two moves — win the rook.",
+      fen: "r3k3/8/8/8/8/5B2/8/4K3 w - - 0 1",
+      solution: ["f3b7", "e8d8", "b7a8"],
+    },
+    {
+      title: "Knight and Rook Combo",
+      prompt: "White to move. Win significant material in two.",
+      fen: "r3k3/3q4/8/8/8/4N3/8/4K3 w - - 0 1",
+      solution: ["e3f5", "d7e6", "f5d6"],
+    },
   ];
 
   let gameState = null;
@@ -446,8 +1076,18 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   let aiColor = "b";
   let aiTimer = null;
   let puzzleIndex = 0;
+  let currentPuzzleId = 0;
   let currentPuzzle = null;
   let puzzleAnswerHint = null;
+  let puzzleMoveIndex = 0;
+  let puzzleShuffleEnabled = false;
+  let puzzleOrder = chessPuzzles.map((_, index) => index);
+  let setupModeEnabled = false;
+  let setupDragFrom = null;
+  let setupDragPiece = null;
+  let setupSelectedPiece = null;
+  let setupMouseDragPiece = null;
+  let setupMouseDragGhost = null;
   let chessPeer = null;
   let chessConn = null;
   let liveRoomId = null;
@@ -456,6 +1096,30 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   let liveReady = false;
 
   const LIVE_ROOM_PREFIX = "ma-chess-";
+  const CHESS_MODE_STORAGE_KEY = "midnight-arcade-chess-mode";
+
+  function savePreferredChessMode(mode) {
+    if (!["local", "computer", "live", "puzzle"].includes(mode)) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(CHESS_MODE_STORAGE_KEY, mode);
+    } catch (error) {
+      // Ignore storage failures (private mode / blocked storage).
+    }
+  }
+
+  function loadPreferredChessMode() {
+    try {
+      const storedMode = window.localStorage.getItem(CHESS_MODE_STORAGE_KEY);
+      if (["local", "computer", "live", "puzzle"].includes(storedMode)) {
+        return storedMode;
+      }
+    } catch (error) {
+      // Ignore storage failures and fall back to defaults.
+    }
+    return null;
+  }
 
   function createInitialBoard() {
     return [
@@ -608,6 +1272,54 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   function setStatus(message, cssClass = "") {
     statusEl.textContent = message;
     statusEl.className = `status-text ${cssClass}`.trim();
+  }
+
+  function appendLiveChatEntry(author, text) {
+    if (!liveChatLogEl) {
+      return;
+    }
+    const cleanText = String(text || "").trim();
+    if (!cleanText) {
+      return;
+    }
+    const row = document.createElement("p");
+    row.className = "mp-chat-row";
+    row.textContent = `${author}: ${cleanText}`;
+    liveChatLogEl.appendChild(row);
+    liveChatLogEl.scrollTop = liveChatLogEl.scrollHeight;
+  }
+
+  function clearLiveChatLog() {
+    if (!liveChatLogEl) {
+      return;
+    }
+    liveChatLogEl.innerHTML = "";
+  }
+
+  function hideEndgameModal() {
+    if (!endgameModalEl) {
+      return;
+    }
+    endgameModalEl.hidden = true;
+  }
+
+  function showEndgameModal(message) {
+    if (!endgameModalEl || !endgameMessageEl) {
+      return;
+    }
+    endgameMessageEl.textContent = message;
+    endgameModalEl.hidden = false;
+  }
+
+  function getCheckmateModalMessage(loserColor, outcomeOptions = {}) {
+    const winnerColor = enemy(loserColor);
+    if (currentMode === "live") {
+      return winnerColor === liveColor ? "Checkmate! You've won." : "You've been Checkmated.";
+    }
+    if (currentMode === "computer") {
+      return outcomeOptions.isComputer ? "You've been Checkmated." : "Checkmate! You've won.";
+    }
+    return outcomeOptions.fromRemote ? "You've been Checkmated." : "Checkmate! You've won.";
   }
 
   function setTurnLabel() {
@@ -1044,8 +1756,24 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     };
   }
 
+  function syncBoardSquareSizing() {
+    if (!boardEl) {
+      return;
+    }
+    const availableWidth = Math.min(560, Math.floor((boardSizerEl && boardSizerEl.clientWidth) || boardEl.clientWidth || 0));
+    if (!availableWidth) {
+      return;
+    }
+    const cellSize = Math.max(1, Math.floor(availableWidth / 8));
+    const boardSize = cellSize * 8;
+    boardEl.style.setProperty("--chess-cell-size", `${cellSize}px`);
+    boardEl.style.width = `${boardSize}px`;
+    boardEl.style.height = `${boardSize}px`;
+  }
+
   function renderBoard() {
     boardEl.innerHTML = "";
+    boardEl.classList.toggle("setup-active", isSetupModeActive());
     for (let dr = 0; dr < 8; dr += 1) {
       for (let dc = 0; dc < 8; dc += 1) {
         const { r, c } = toBoardCoords(dr, dc);
@@ -1073,6 +1801,86 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
         pieceSpan.textContent = piece ? pieceGlyphs[piece] : "";
         square.appendChild(pieceSpan);
 
+        const setupActive = isSetupModeActive();
+        square.draggable = setupActive && Boolean(piece);
+
+        if (setupActive) {
+          square.addEventListener("dragstart", (event) => {
+            const draggedPiece = gameState.board[r][c];
+            if (!draggedPiece) {
+              event.preventDefault();
+              return;
+            }
+            setupDragFrom = { r, c };
+            setupDragPiece = draggedPiece;
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("application/x-chess-piece", draggedPiece);
+              event.dataTransfer.setData("application/x-chess-from", `${r},${c}`);
+              event.dataTransfer.setData("text/plain", `${r},${c}`);
+            }
+          });
+
+          pieceSpan.draggable = Boolean(piece);
+          pieceSpan.addEventListener("dragstart", (event) => {
+            const draggedPiece = gameState.board[r][c];
+            if (!draggedPiece) {
+              event.preventDefault();
+              return;
+            }
+            setupDragFrom = { r, c };
+            setupDragPiece = draggedPiece;
+            if (event.dataTransfer) {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("application/x-chess-piece", draggedPiece);
+              event.dataTransfer.setData("application/x-chess-from", `${r},${c}`);
+              event.dataTransfer.setData("text/plain", `${r},${c}`);
+            }
+          });
+
+          square.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            if (event.dataTransfer) {
+              event.dataTransfer.dropEffect = "move";
+            }
+          });
+
+          square.addEventListener("drop", (event) => {
+            event.preventDefault();
+            let from = setupDragFrom;
+            let pieceToPlace = setupDragPiece;
+
+            if ((!pieceToPlace || !from) && event.dataTransfer) {
+              const droppedPiece = event.dataTransfer.getData("application/x-chess-piece");
+              const droppedFrom = event.dataTransfer.getData("application/x-chess-from") || event.dataTransfer.getData("text/plain");
+              if (droppedPiece && /^[wb][KQRBNP]$/.test(droppedPiece)) {
+                pieceToPlace = droppedPiece;
+              }
+              if (droppedFrom && /^\d,\d$/.test(droppedFrom)) {
+                const [fr, fc] = droppedFrom.split(",").map(Number);
+                if (inBounds(fr, fc)) {
+                  from = { r: fr, c: fc };
+                  if (!pieceToPlace && gameState.board[fr][fc]) {
+                    pieceToPlace = gameState.board[fr][fc];
+                  }
+                }
+              }
+            }
+
+            if (!pieceToPlace) {
+              return;
+            }
+            setupDragFrom = null;
+            setupDragPiece = null;
+            applySetupPlacement(r, c, pieceToPlace, from);
+          });
+
+          square.addEventListener("dragend", () => {
+            setupDragFrom = null;
+            setupDragPiece = null;
+          });
+        }
+
         if (dr === 7) {
           const file = document.createElement("span");
           file.className = "coord-file";
@@ -1091,6 +1899,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
         boardEl.appendChild(square);
       }
     }
+    syncBoardSquareSizing();
   }
 
   function askPromotionChoice() {
@@ -1112,6 +1921,13 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
   function isLiveMode() {
     return currentMode === "live";
+  }
+
+  function syncLiveBoardOrientation() {
+    if (!isLiveMode()) {
+      return;
+    }
+    flipped = liveColor === "b";
   }
 
   function updateLiveInviteLink() {
@@ -1155,9 +1971,13 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     liveColor = "w";
     if (options.clearRoom !== false) {
       liveRoomId = null;
+      clearLiveChatLog();
     }
     if (options.clearLink !== false && linkInput) {
       linkInput.value = "";
+    }
+    if (isLiveMode()) {
+      updateModeUI();
     }
   }
 
@@ -1166,6 +1986,26 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       return false;
     }
     chessConn.send(payload);
+    return true;
+  }
+
+  function sendLiveChat(text) {
+    const cleanText = String(text || "").trim();
+    if (!cleanText) {
+      return false;
+    }
+    if (!isLiveMode() || !liveReady) {
+      setStatus("Connect to a live room before chatting.", "lose");
+      return false;
+    }
+
+    const author = liveColor === "w" ? "You (White)" : "You (Black)";
+    appendLiveChatEntry(author, cleanText);
+    sendLiveMessage({
+      type: "chat",
+      author,
+      text: cleanText,
+    });
     return true;
   }
 
@@ -1190,10 +2030,11 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     gameState = parsed;
     selected = null;
     legalMoves = [];
+    syncLiveBoardOrientation();
     setTurnLabel();
     renderBoard();
     if (gameState.gameOver) {
-      updateGameOutcome();
+      updateGameOutcome({ fromRemote: true });
     } else {
       setStatus(gameState.turn === liveColor ? "Your move." : "Opponent to move.");
     }
@@ -1225,7 +2066,9 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     if (message.type === "welcome") {
       if (liveRole === "guest") {
         liveColor = message.color === "w" ? "w" : "b";
+        syncLiveBoardOrientation();
         liveReady = true;
+        updateModeUI();
         parseStateFromSync(message);
         setStatus(liveColor === "w" ? "Connected live game. You are White." : "Connected live game. You are Black.", "win");
       }
@@ -1254,6 +2097,12 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       return;
     }
 
+    if (message.type === "chat") {
+      const author = message.author || "Opponent";
+      appendLiveChatEntry(author, message.text || "");
+      return;
+    }
+
     if (message.type === "new-game") {
       resetGame({ fromRemote: true });
     }
@@ -1264,18 +2113,21 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
     chessConn.on("open", () => {
       liveReady = true;
+      updateModeUI();
       if (liveRole === "host") {
-        liveColor = "w";
+        syncLiveBoardOrientation();
         updateLiveInviteLink();
         sendLiveMessage({
           type: "welcome",
-          color: "b",
+          color: liveColor === "w" ? "b" : "w",
           fen: stateToFen(gameState),
           gameOver: !!gameState.gameOver,
         });
         setStatus("Opponent connected. Live game started.", "win");
+        appendLiveChatEntry("System", "Opponent connected.");
       } else {
         setStatus("Connected to host. Waiting for board sync...", "win");
+        appendLiveChatEntry("System", "Connected to host.");
       }
     });
 
@@ -1286,6 +2138,8 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     chessConn.on("close", () => {
       liveReady = false;
       chessConn = null;
+      updateModeUI();
+      appendLiveChatEntry("System", "Live connection ended.");
       if (isLiveMode()) {
         setStatus("Live connection ended.", "lose");
       }
@@ -1298,15 +2152,17 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     });
   }
 
-  function startLiveHost() {
+  function startLiveHost(hostColor = "w") {
     if (typeof Peer === "undefined") {
       setStatus("Live multiplayer unavailable. PeerJS failed to load.", "lose");
       return;
     }
 
     resetLiveSession({ clearRoom: false, clearLink: false });
+    clearLiveChatLog();
     liveRole = "host";
-    liveColor = "w";
+    liveColor = hostColor === "b" ? "b" : "w";
+    syncLiveBoardOrientation();
     liveRoomId = liveRoomId || randomLiveRoomId();
 
     setStatus("Creating live room...", "win");
@@ -1343,8 +2199,10 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     }
 
     resetLiveSession({ clearRoom: false, clearLink: false });
+    clearLiveChatLog();
     liveRole = "guest";
     liveColor = "b";
+    syncLiveBoardOrientation();
     liveRoomId = roomId;
     updateLiveInviteLink();
 
@@ -1362,9 +2220,22 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   }
 
   function updateModeUI() {
+    const supportsSetup = currentMode === "local" || currentMode === "computer" || currentMode === "live";
     const isComputer = currentMode === "computer";
     const isLive = currentMode === "live";
+    const showLiveInviteControls = isLive && !liveReady;
     const isPuzzle = currentMode === "puzzle";
+
+    if (!supportsSetup) {
+      setupModeEnabled = false;
+      setupDragFrom = null;
+      setupDragPiece = null;
+      setupSelectedPiece = null;
+    }
+
+    if (boardEl) {
+      boardEl.classList.toggle("setup-active", supportsSetup && setupModeEnabled);
+    }
 
     if (aiLevelSelect) {
       aiLevelSelect.classList.toggle("hidden", !isComputer);
@@ -1374,14 +2245,137 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       aiLevelLabel.classList.toggle("hidden", !isComputer);
     }
     if (linkControls) {
-      linkControls.classList.toggle("hidden", !isLive);
+      linkControls.classList.toggle("hidden", !showLiveInviteControls);
     }
     if (linkInput) {
-      linkInput.classList.toggle("hidden", !isLive);
+      linkInput.classList.toggle("hidden", !showLiveInviteControls);
+    }
+    if (setupControls) {
+      setupControls.classList.toggle("hidden", !supportsSetup);
+    }
+    if (setupPieceBank) {
+      setupPieceBank.classList.toggle("hidden", !(supportsSetup && setupModeEnabled));
+    }
+    if (setupTrash) {
+      setupTrash.classList.toggle("hidden", !(supportsSetup && setupModeEnabled));
+    }
+    if (setupClearBtn) {
+      setupClearBtn.classList.toggle("hidden", !(supportsSetup && setupModeEnabled));
+    }
+    if (setupStartBtn) {
+      setupStartBtn.classList.toggle("hidden", !(supportsSetup && setupModeEnabled));
+    }
+    if (liveChatPanel) {
+      liveChatPanel.classList.toggle("hidden", !isLive);
     }
     if (puzzleControls) {
       puzzleControls.classList.toggle("hidden", !isPuzzle);
     }
+  }
+
+  function isSetupSupportedMode() {
+    return currentMode === "local" || currentMode === "computer" || currentMode === "live";
+  }
+
+  function isSetupModeActive() {
+    return isSetupSupportedMode() && setupModeEnabled;
+  }
+
+  function loadNormalSetupBoard() {
+    gameState = createInitialState();
+    selected = null;
+    legalMoves = [];
+    puzzleAnswerHint = null;
+    setupDragFrom = null;
+    setupDragPiece = null;
+    hideEndgameModal();
+    setTurnLabel();
+    renderBoard();
+  }
+
+  function applySetupMove(fromR, fromC, toR, toC) {
+    if (!gameState || !inBounds(fromR, fromC) || !inBounds(toR, toC)) {
+      return;
+    }
+    const piece = gameState.board[fromR][fromC];
+    if (!piece) {
+      return;
+    }
+    gameState.board[fromR][fromC] = null;
+    gameState.board[toR][toC] = piece;
+    gameState.gameOver = false;
+    selected = null;
+    legalMoves = [];
+    puzzleAnswerHint = null;
+    renderBoard();
+  }
+
+  function applySetupPlacement(toR, toC, pieceCode, fromSquare = null) {
+    if (!gameState || !pieceCode || !inBounds(toR, toC)) {
+      return;
+    }
+    if (fromSquare && inBounds(fromSquare.r, fromSquare.c)) {
+      gameState.board[fromSquare.r][fromSquare.c] = null;
+    }
+    gameState.board[toR][toC] = pieceCode;
+    gameState.gameOver = false;
+    selected = null;
+    legalMoves = [];
+    puzzleAnswerHint = null;
+    renderBoard();
+  }
+
+  function clearSetupMouseDragGhost() {
+    if (setupMouseDragGhost && setupMouseDragGhost.parentNode) {
+      setupMouseDragGhost.parentNode.removeChild(setupMouseDragGhost);
+    }
+    setupMouseDragGhost = null;
+  }
+
+  function startSetupMouseDrag(pieceCode, startEvent) {
+    if (!isSetupModeActive() || !pieceCode) {
+      return;
+    }
+
+    setupMouseDragPiece = pieceCode;
+    clearSetupMouseDragGhost();
+
+    const ghost = document.createElement("div");
+    ghost.className = "chess-setup-drag-ghost";
+    ghost.textContent = pieceGlyphs[pieceCode] || "";
+    ghost.classList.add(colorOf(pieceCode) === "w" ? "white" : "black");
+    document.body.appendChild(ghost);
+    setupMouseDragGhost = ghost;
+
+    const moveGhost = (event) => {
+      if (!setupMouseDragGhost) {
+        return;
+      }
+      setupMouseDragGhost.style.left = `${event.clientX}px`;
+      setupMouseDragGhost.style.top = `${event.clientY}px`;
+    };
+
+    const endDrag = (event) => {
+      document.removeEventListener("mousemove", moveGhost);
+      document.removeEventListener("mouseup", endDrag);
+
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      const squareEl = target ? target.closest(".chess-square") : null;
+      if (squareEl) {
+        const r = Number(squareEl.dataset.row);
+        const c = Number(squareEl.dataset.col);
+        if (inBounds(r, c)) {
+          applySetupPlacement(r, c, setupMouseDragPiece, null);
+        }
+      }
+
+      setupMouseDragPiece = null;
+      clearSetupMouseDragGhost();
+    };
+
+    moveGhost(startEvent);
+    document.addEventListener("mousemove", moveGhost);
+    document.addEventListener("mouseup", endDrag);
   }
 
   function stopComputerTimer() {
@@ -1408,21 +2402,227 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     }, aiLevel === "hard" ? 450 : 300);
   }
 
+  function getPuzzleMoves(puzzle) {
+    if (!puzzle) return [];
+    return Array.isArray(puzzle.solution) ? puzzle.solution : [puzzle.solution];
+  }
+
+  function createDefaultPuzzleOrder() {
+    return chessPuzzles.map((_, index) => index);
+  }
+
+  function shuffleArray(values) {
+    const arr = [...values];
+    for (let i = arr.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function updatePuzzleShuffleButtonLabel() {
+    if (!puzzleShuffleBtn) {
+      return;
+    }
+    puzzleShuffleBtn.textContent = puzzleShuffleEnabled ? "Shuffle: On" : "Shuffle: Off";
+  }
+
+  function setPuzzleShuffleEnabled(enabled, options = {}) {
+    const { reload = true } = options;
+    puzzleShuffleEnabled = Boolean(enabled);
+    const defaultOrder = createDefaultPuzzleOrder();
+    puzzleOrder = puzzleShuffleEnabled ? shuffleArray(defaultOrder) : defaultOrder;
+    updatePuzzleShuffleButtonLabel();
+    if (reload && currentMode === "puzzle") {
+      loadPuzzle(0);
+    }
+  }
+
+  function formatPuzzleStatus(message) {
+    if (!currentPuzzle) {
+      return message;
+    }
+    const puzzleNum = currentPuzzleId + 1;
+    const puzzleTotal = chessPuzzles.length;
+    return `Puzzle #${puzzleNum} of ${puzzleTotal} — ${message}`;
+  }
+
+  function squareKey(r, c) {
+    return `${r},${c}`;
+  }
+
+  function collectPuzzleReservedSquares(puzzle) {
+    const reservedSquares = new Set();
+    const moves = getPuzzleMoves(puzzle);
+    for (const moveText of moves) {
+      const parsed = parseUciMove(moveText);
+      if (!parsed) {
+        continue;
+      }
+      reservedSquares.add(squareKey(parsed.fromR, parsed.fromC));
+      reservedSquares.add(squareKey(parsed.toR, parsed.toC));
+    }
+    return reservedSquares;
+  }
+
+  function countColorPawns(board, color) {
+    let count = 0;
+    for (const row of board) {
+      for (const piece of row) {
+        if (piece === `${color}P`) {
+          count += 1;
+        }
+      }
+    }
+    return count;
+  }
+
+  function hasCentralKnight(board, color) {
+    const centralSquares = [
+      [2, 2], [2, 3], [2, 4], [2, 5],
+      [3, 2], [3, 3], [3, 4], [3, 5],
+      [4, 2], [4, 3], [4, 4], [4, 5],
+      [5, 2], [5, 3], [5, 4], [5, 5],
+    ];
+    for (const [r, c] of centralSquares) {
+      if (board[r][c] === `${color}N`) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function addPieceFromCandidates(board, pieceCode, reservedSquares, candidates) {
+    for (const [r, c] of candidates) {
+      if (board[r][c]) {
+        continue;
+      }
+      if (reservedSquares.has(squareKey(r, c))) {
+        continue;
+      }
+      board[r][c] = pieceCode;
+      return true;
+    }
+    return false;
+  }
+
+  function stylePuzzlePosition(state, puzzle) {
+    if (!state || !state.board) {
+      return;
+    }
+
+    const reservedSquares = collectPuzzleReservedSquares(puzzle);
+    const whitePawnCandidates = [[6, 0], [6, 1], [6, 6], [6, 7], [5, 0], [5, 7]];
+    const blackPawnCandidates = [[1, 0], [1, 1], [1, 6], [1, 7], [2, 0], [2, 7]];
+    const whiteKnightCandidates = [[5, 2], [5, 3], [4, 2], [4, 3], [5, 4], [4, 4]];
+    const blackKnightCandidates = [[2, 5], [2, 4], [3, 5], [3, 4], [2, 3], [3, 3]];
+
+    const puzzleTitle = String(puzzle?.title || "").trim();
+
+    if (puzzleTitle === "Mate in One" && !state.board[2][2] && !reservedSquares.has(squareKey(2, 2))) {
+      state.board[2][2] = "bQ";
+      state.board[0][5] = "bR"; // f8
+    }
+
+    // Ensure both sides always have at least two pawns in plausible game-like files.
+    while (countColorPawns(state.board, "w") < 2) {
+      if (!addPieceFromCandidates(state.board, "wP", reservedSquares, whitePawnCandidates)) {
+        break;
+      }
+    }
+    while (countColorPawns(state.board, "b") < 2) {
+      if (!addPieceFromCandidates(state.board, "bP", reservedSquares, blackPawnCandidates)) {
+        break;
+      }
+    }
+
+    if (puzzleTitle === "Mate in One #1") {
+      // Puzzle 4 custom layout: queen on e4, knight on g8, pawns on c6/d5, white king on f7.
+      for (let r = 0; r < 8; r += 1) {
+        for (let c = 0; c < 8; c += 1) {
+          if (state.board[r][c] === "bN") {
+            state.board[r][c] = null;
+          }
+          if (state.board[r][c] === "wK") {
+            state.board[r][c] = null;
+          }
+        }
+      }
+      state.board[4][4] = "bQ"; // e4
+      state.board[0][0] = "bR"; // a8
+      state.board[0][4] = "bR"; // e8
+      state.board[0][6] = "bN"; // g8
+      state.board[2][2] = "bP"; // c6
+      state.board[3][3] = "bP"; // d5
+      state.board[1][5] = "wK"; // f7
+    }
+
+    if (puzzleTitle === "Win the Queen") {
+      // Puzzle 3 custom layout: no extra knights, bishop on the black-knight square, pawns on g7/h7.
+      for (let r = 0; r < 8; r += 1) {
+        for (let c = 0; c < 8; c += 1) {
+          if (state.board[r][c] === "wN" || state.board[r][c] === "bN") {
+            state.board[r][c] = null;
+          }
+        }
+      }
+      state.board[2][5] = "bB";
+      state.board[1][6] = "bP";
+      state.board[1][7] = "bP";
+      return;
+    }
+
+    // Ensure each side has a knight in a central area when possible.
+    if (!hasCentralKnight(state.board, "w")) {
+      addPieceFromCandidates(state.board, "wN", reservedSquares, whiteKnightCandidates);
+    }
+    if (puzzleTitle !== "Mate in One #1" && !hasCentralKnight(state.board, "b")) {
+      const wantsQueenSupport = puzzleTitle === "Mate in One #2" || puzzleTitle === "Back Rank Mate";
+      const blackMinorOrQueen = wantsQueenSupport ? "bQ" : "bN";
+      addPieceFromCandidates(state.board, blackMinorOrQueen, reservedSquares, blackKnightCandidates);
+    }
+  }
+
   function loadPuzzle(index) {
     resetLiveSession();
-    puzzleIndex = ((index % chessPuzzles.length) + chessPuzzles.length) % chessPuzzles.length;
-    currentPuzzle = chessPuzzles[puzzleIndex];
+    if (!puzzleOrder.length) {
+      puzzleOrder = createDefaultPuzzleOrder();
+    }
+    puzzleIndex = ((index % puzzleOrder.length) + puzzleOrder.length) % puzzleOrder.length;
+    currentPuzzleId = puzzleOrder[puzzleIndex] ?? puzzleIndex;
+    currentPuzzle = chessPuzzles[currentPuzzleId];
     puzzleAnswerHint = null;
+    puzzleMoveIndex = 0;
     const parsed = parseFen(currentPuzzle.fen);
     if (!parsed) {
       return;
     }
+    stylePuzzlePosition(parsed, currentPuzzle);
     gameState = parsed;
     selected = null;
     legalMoves = [];
     setTurnLabel();
-    setStatus(`Puzzle: ${currentPuzzle.prompt}`);
+    setStatus(formatPuzzleStatus(`${currentPuzzle.title}: ${currentPuzzle.prompt}`));
     renderBoard();
+  }
+
+  function puzzleRequiresCheckmate(puzzle) {
+    const promptText = String(puzzle?.prompt || "").toLowerCase();
+    const titleText = String(puzzle?.title || "").toLowerCase();
+    return promptText.includes("checkmate") || titleText.includes("mate in");
+  }
+
+  function isCurrentPositionMatePattern() {
+    const color = gameState.turn;
+    const kingSquare = findKing(gameState.board, color);
+    if (!kingSquare) {
+      return false;
+    }
+    if (!isKingInCheck(gameState, color)) {
+      return false;
+    }
+    const kingMoves = getLegalMovesForSquare(gameState, kingSquare.r, kingSquare.c);
+    return kingMoves.length === 0;
   }
 
   function updateFromUrlIfPresent() {
@@ -1431,6 +2631,13 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     if (["local", "computer", "live", "puzzle"].includes(requestedMode)) {
       currentMode = requestedMode;
       modeSelect.value = requestedMode;
+      savePreferredChessMode(requestedMode);
+    } else {
+      const preferredMode = loadPreferredChessMode();
+      if (preferredMode) {
+        currentMode = preferredMode;
+        modeSelect.value = preferredMode;
+      }
     }
 
     if (currentMode === "live") {
@@ -1441,7 +2648,16 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     }
   }
 
-  function updateGameOutcome() {
+  function syncChessModeInUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("mode", currentMode);
+    if (currentMode !== "live") {
+      url.searchParams.delete("room");
+    }
+    window.history.replaceState({}, "", url.toString());
+  }
+
+  function updateGameOutcome(outcomeOptions = {}) {
     const color = gameState.turn;
     const allMoves = getAllLegalMoves(gameState, color);
     const checked = isKingInCheck(gameState, color);
@@ -1449,20 +2665,24 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     if (allMoves.length === 0 && checked) {
       gameState.gameOver = true;
       setStatus(`Checkmate. ${color === "w" ? "Black" : "White"} wins.`, "win");
+      showEndgameModal(getCheckmateModalMessage(color, outcomeOptions));
       return;
     }
 
     if (allMoves.length === 0 && !checked) {
       gameState.gameOver = true;
+      hideEndgameModal();
       setStatus("Stalemate. Draw game.", "");
       return;
     }
 
     if (checked) {
+      hideEndgameModal();
       setStatus(`${color === "w" ? "White" : "Black"} is in check.`, "lose");
       return;
     }
 
+    hideEndgameModal();
     setStatus(`${color === "w" ? "White" : "Black"} to move.`);
   }
 
@@ -1477,9 +2697,10 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     }
 
     if (currentMode === "puzzle" && !options.isComputer && currentPuzzle) {
-      const expected = currentPuzzle.solution.toLowerCase();
+      const puzzleMoves = getPuzzleMoves(currentPuzzle);
+      const expected = (puzzleMoves[puzzleMoveIndex] || "").toLowerCase();
       if (moveKey(move).toLowerCase() !== expected) {
-        setStatus("Not the puzzle move. Try again.", "lose");
+        setStatus(formatPuzzleStatus("Not the puzzle move. Try again."), "lose");
         selected = null;
         legalMoves = [];
         renderBoard();
@@ -1496,10 +2717,47 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     setTurnLabel();
 
     if (currentMode === "puzzle" && currentPuzzle && !options.isComputer) {
-      gameState.gameOver = true;
-      setStatus("Correct move. Puzzle solved!", "win");
+      const puzzleMoves = getPuzzleMoves(currentPuzzle);
+      puzzleMoveIndex += 1;
+      const opponentMoveUci = puzzleMoves[puzzleMoveIndex];
+      if (opponentMoveUci) {
+        // Auto-play opponent response
+        renderBoard();
+        const opponentMove = parseUciMove(opponentMoveUci);
+        if (opponentMove) {
+          puzzleMoveIndex += 1;
+          applyMoveToState(gameState, opponentMove, opponentMove.promotionChoice || "Q");
+          setTurnLabel();
+        }
+        // Check if there are more player moves
+        if (puzzleMoveIndex >= puzzleMoves.length) {
+          if (puzzleRequiresCheckmate(currentPuzzle) && !isCurrentPositionMatePattern()) {
+            setStatus(formatPuzzleStatus("That line does not end in checkmate. Try again."), "lose");
+            resetGame();
+            return;
+          }
+          gameState.gameOver = true;
+          hideEndgameModal();
+          setStatus(formatPuzzleStatus("Correct! Puzzle solved!"), "win");
+        } else {
+          const moveNum = Math.floor(puzzleMoveIndex / 2) + 1;
+          const totalMoves = Math.ceil(puzzleMoves.length / 2);
+          setStatus(formatPuzzleStatus(`Move ${moveNum}/${totalMoves}: ${currentPuzzle.prompt}`));
+          puzzleAnswerHint = null;
+        }
+      } else {
+        // No opponent response — puzzle complete
+        if (puzzleRequiresCheckmate(currentPuzzle) && !isCurrentPositionMatePattern()) {
+          setStatus(formatPuzzleStatus("That move does not checkmate. Try again."), "lose");
+          resetGame();
+          return;
+        }
+        gameState.gameOver = true;
+        hideEndgameModal();
+        setStatus(formatPuzzleStatus("Correct! Puzzle solved!"), "win");
+      }
     } else {
-      updateGameOutcome();
+      updateGameOutcome(options);
     }
 
     renderBoard();
@@ -1524,6 +2782,13 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   }
 
   function handleSquareClick(r, c) {
+    if (isSetupModeActive()) {
+      if (setupSelectedPiece) {
+        applySetupPlacement(r, c, setupSelectedPiece, null);
+      }
+      return;
+    }
+
     if (gameState.gameOver) {
       return;
     }
@@ -1563,6 +2828,7 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
 
   function resetGame() {
     stopComputerTimer();
+    hideEndgameModal();
 
     if (currentMode === "puzzle") {
       loadPuzzle(puzzleIndex);
@@ -1603,6 +2869,12 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
   });
 
   flipBtn.addEventListener("click", () => {
+    if (currentMode === "live") {
+      syncLiveBoardOrientation();
+      renderBoard();
+      setStatus("Live mode orientation is locked to your color.");
+      return;
+    }
     flipped = !flipped;
     renderBoard();
   });
@@ -1613,6 +2885,11 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
       resetLiveSession();
     }
     currentMode = modeSelect.value;
+    if (currentMode === "live") {
+      syncLiveBoardOrientation();
+    }
+    savePreferredChessMode(currentMode);
+    syncChessModeInUrl();
     updateModeUI();
     if (currentMode === "live" && liveRoomId) {
       resetGame();
@@ -1635,12 +2912,15 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
         setStatus("Switch to Live Multiplayer mode first.", "lose");
         return;
       }
+      const preferredLiveColor = liveColorSelect && liveColorSelect.value === "b" ? "b" : "w";
       gameState = createInitialState();
       selected = null;
       legalMoves = [];
+      liveColor = preferredLiveColor;
+      syncLiveBoardOrientation();
       setTurnLabel();
       renderBoard();
-      startLiveHost();
+      startLiveHost(preferredLiveColor);
     });
   }
 
@@ -1659,6 +2939,31 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     });
   }
 
+  if (liveChatSendBtn) {
+    liveChatSendBtn.addEventListener("click", () => {
+      if (!liveChatInput) {
+        return;
+      }
+      const sent = sendLiveChat(liveChatInput.value);
+      if (sent) {
+        liveChatInput.value = "";
+      }
+    });
+  }
+
+  if (liveChatInput) {
+    liveChatInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+      event.preventDefault();
+      const sent = sendLiveChat(liveChatInput.value);
+      if (sent) {
+        liveChatInput.value = "";
+      }
+    });
+  }
+
   if (puzzleNextBtn) {
     puzzleNextBtn.addEventListener("click", () => {
       if (currentMode !== "puzzle") {
@@ -1669,22 +2974,215 @@ if (ticCells.length && ticFeedback && resetTicBtn) {
     });
   }
 
+  if (puzzleShuffleBtn) {
+    puzzleShuffleBtn.addEventListener("click", () => {
+      if (currentMode !== "puzzle") {
+        setStatus("Switch to Chess Puzzles mode first.", "lose");
+        return;
+      }
+      setPuzzleShuffleEnabled(!puzzleShuffleEnabled);
+      setStatus(formatPuzzleStatus(`Puzzle order ${puzzleShuffleEnabled ? "randomized" : "reset"}.`), "win");
+    });
+  }
+
+  for (const setupPieceBtn of setupPieceButtons) {
+    setupPieceBtn.draggable = true;
+
+    setupPieceBtn.addEventListener("mousedown", () => {
+      if (!isSetupModeActive()) {
+        return;
+      }
+      setupDragFrom = null;
+      setupDragPiece = setupPieceBtn.dataset.piece || null;
+      setupSelectedPiece = setupDragPiece;
+    });
+
+    setupPieceBtn.addEventListener("mousedown", (event) => {
+      if (!isSetupModeActive()) {
+        return;
+      }
+      if (event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      const pieceCode = setupPieceBtn.dataset.piece || null;
+      startSetupMouseDrag(pieceCode, event);
+    });
+
+    setupPieceBtn.addEventListener("click", () => {
+      if (!isSetupModeActive()) {
+        return;
+      }
+      setupSelectedPiece = setupPieceBtn.dataset.piece || null;
+      setStatus("Piece selected. Click a board square to place it, or drag it onto the board.", "win");
+    });
+
+    setupPieceBtn.addEventListener("dragstart", (event) => {
+      if (!isSetupModeActive()) {
+        event.preventDefault();
+        return;
+      }
+      setupDragFrom = null;
+      setupDragPiece = setupPieceBtn.dataset.piece || null;
+      setupSelectedPiece = setupDragPiece;
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "copy";
+        event.dataTransfer.setData("application/x-chess-piece", setupDragPiece || "");
+        event.dataTransfer.setData("text/plain", setupDragPiece || "");
+      }
+    });
+
+    setupPieceBtn.addEventListener("dragend", () => {
+      setupDragFrom = null;
+      setupDragPiece = null;
+    });
+  }
+
+  if (setupTrash) {
+    setupTrash.addEventListener("dragover", (event) => {
+      if (!isSetupModeActive()) {
+        return;
+      }
+      event.preventDefault();
+      setupTrash.classList.add("drag-over");
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+    });
+
+    setupTrash.addEventListener("dragleave", () => {
+      setupTrash.classList.remove("drag-over");
+    });
+
+    setupTrash.addEventListener("drop", (event) => {
+      if (!isSetupModeActive()) {
+        return;
+      }
+      event.preventDefault();
+      setupTrash.classList.remove("drag-over");
+      if (setupDragFrom && inBounds(setupDragFrom.r, setupDragFrom.c) && gameState) {
+        gameState.board[setupDragFrom.r][setupDragFrom.c] = null;
+        gameState.gameOver = false;
+        selected = null;
+        legalMoves = [];
+        puzzleAnswerHint = null;
+        renderBoard();
+        setStatus("Piece removed from board.", "win");
+      }
+      setupDragFrom = null;
+      setupDragPiece = null;
+      setupSelectedPiece = null;
+    });
+  }
+
+  if (setupNormalBtn) {
+    setupNormalBtn.addEventListener("click", () => {
+      if (!isSetupSupportedMode()) {
+        setStatus("Set up modes are available in Play by Yourself, Vs Computer, and Live Multiplayer.", "lose");
+        return;
+      }
+      setupModeEnabled = false;
+      loadNormalSetupBoard();
+      updateModeUI();
+      setStatus("Normal set up mode loaded.", "win");
+    });
+  }
+
+  if (setupModifyBtn) {
+    setupModifyBtn.addEventListener("click", () => {
+      if (!isSetupSupportedMode()) {
+        setStatus("Set up modes are available in Play by Yourself, Vs Computer, and Live Multiplayer.", "lose");
+        return;
+      }
+      setupModeEnabled = true;
+      setupDragFrom = null;
+      setupDragPiece = null;
+      updateModeUI();
+      renderBoard();
+      setStatus("Modify set up mode on. Drag and drop any white or black piece.", "win");
+    });
+  }
+
+  if (setupClearBtn) {
+    setupClearBtn.addEventListener("click", () => {
+      if (!isSetupModeActive()) {
+        setStatus("Clear board is available only in Modify Set up Mode.", "lose");
+        return;
+      }
+
+      gameState.board = Array.from({ length: 8 }, () => Array(8).fill(null));
+      gameState.turn = "w";
+      gameState.castling = { wK: false, wQ: false, bK: false, bQ: false };
+      gameState.enPassant = null;
+      gameState.gameOver = false;
+      selected = null;
+      legalMoves = [];
+      puzzleAnswerHint = null;
+      setupDragFrom = null;
+      setupDragPiece = null;
+      setupSelectedPiece = null;
+      setTurnLabel();
+      renderBoard();
+      setStatus("Board cleared.", "win");
+    });
+  }
+
+  if (setupStartBtn) {
+    setupStartBtn.addEventListener("click", () => {
+      if (!isSetupModeActive()) {
+        setStatus("Start is available only in Modify Set up Mode.", "lose");
+        return;
+      }
+
+      setupModeEnabled = false;
+      setupDragFrom = null;
+      setupDragPiece = null;
+      setupSelectedPiece = null;
+      gameState.gameOver = false;
+      selected = null;
+      legalMoves = [];
+      puzzleAnswerHint = null;
+      hideEndgameModal();
+      updateModeUI();
+      renderBoard();
+      setStatus("Game started from custom setup.", "win");
+    });
+  }
+
   if (puzzleAnswerBtn) {
     puzzleAnswerBtn.addEventListener("click", () => {
       if (currentMode !== "puzzle" || !currentPuzzle) {
         setStatus("Switch to Chess Puzzles mode first.", "lose");
         return;
       }
-      const hint = parseUciMove(currentPuzzle.solution);
+      const puzzleMoves = getPuzzleMoves(currentPuzzle);
+      const currentMoveUci = puzzleMoves[puzzleMoveIndex] || puzzleMoves[0] || "";
+      const hint = parseUciMove(currentMoveUci);
       if (!hint) {
-        setStatus("Puzzle answer is unavailable for this position.", "lose");
+        setStatus(formatPuzzleStatus("Puzzle answer is unavailable for this position."), "lose");
         return;
       }
       puzzleAnswerHint = hint;
       renderBoard();
-      setStatus(`Answer shown: ${currentPuzzle.solution.toUpperCase()} (blue to gold).`, "win");
+      setStatus(formatPuzzleStatus(`Answer shown: ${currentMoveUci.toUpperCase()} (blue to gold).`), "win");
     });
   }
+
+  if (tryAgainBtn) {
+    tryAgainBtn.addEventListener("click", () => {
+      resetGame();
+    });
+  }
+
+  window.addEventListener("resize", syncBoardSquareSizing);
+  if (typeof ResizeObserver !== "undefined" && boardSizerEl) {
+    const boardResizeObserver = new ResizeObserver(() => {
+      syncBoardSquareSizing();
+    });
+    boardResizeObserver.observe(boardSizerEl);
+  }
+  requestAnimationFrame(syncBoardSquareSizing);
+  updatePuzzleShuffleButtonLabel();
 
   updateFromUrlIfPresent();
   updateModeUI();
